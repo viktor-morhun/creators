@@ -76,7 +76,7 @@ if (false) {
 }
 
 export const setupWeb3EventListeners = (dispatch: AppDispatch) => {
-  storeDispatch = dispatch;
+  // storeDispatch = dispatch;
   const ethereum = (window as any).ethereum;
   if (!ethereum) return;
 
