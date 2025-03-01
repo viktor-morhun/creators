@@ -49,8 +49,8 @@ async function checkApproval(
   assetAddress: string,
   owner: string,
   target: string,
-  assetId?: number, // Optional, required for ERC721 and ERC1155
-  amount?: string // Optional, required for ERC20 and ERC1155, in wei
+  assetId?: number, // Optional, required for ERC721 and
+  amount?: string // Optional, required for ERC20 and in wei
 ): Promise<boolean> {
   try {
     if (assetType === AssetType.ERC20) {
@@ -71,6 +71,48 @@ async function checkApproval(
     return false; // Return false if there's an error (e.g., contract call fails)
   }
 }
+
+
+async function getAuctions(
+    pageSize: number = 10,
+    pageNumber: number = 0,
+    fromBlock: number = 0,
+    toBlock: number | 'latest' = 'latest'
+    ): Promise<AuctionCreatedEvent[]> {
+    // Filter for AuctionCreated events
+    const filter = {
+        address: config.contractAddress,
+        topics: [AUCTION_CREATED_TOPIC],
+        fromBlock,
+        toBlock,
+    };
+
+    // Fetch logs from Infura
+    const logs = await provider.getLogs(filter);
+
+    // Parse logs into AuctionCreatedEvent objects
+    const auctions: AuctionCreatedEvent[] = logs.map((log) => {
+        const decoded = ethers.AbiCoder.defaultAbiCoder().decode(
+        ['uint256', 'address', 'uint8', 'address'],
+        log.data
+        );
+        return {
+        auctionId: decoded[0].toString(),
+        auctionAddress: decoded[1],
+        auctionType: decoded[2],
+        seller: decoded[3],
+        blockNumber: log.blockNumber,
+        };
+    });
+
+    // Sort by block number (newest first)
+    auctions.sort((a, b) => b.blockNumber - a.blockNumber);
+
+    // Apply pagination
+    const startIndex = pageNumber * pageSize;
+    const endIndex = startIndex + pageSize;
+    return auctions.slice(startIndex, endIndex);
+    }
 
 async function getUserAuctions(
   sellerAddress: string,
@@ -172,3 +214,11 @@ async function getAuctionDetails(auctionAddress: string): Promise<AuctionDetails
     type: details[9],
   };
 }
+
+export {
+  checkApproval,
+  getUserAuctions,
+  getAuctionBids,
+  getAuctionDetails,
+  getAuctions,
+};
