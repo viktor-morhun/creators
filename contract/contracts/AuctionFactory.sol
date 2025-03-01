@@ -69,7 +69,7 @@ contract AuctionFactory is Ownable {
     mapping(uint256 => address) public auctions;
     uint256 public auctionCount;
 
-    event AuctionCreated(uint256 auctionId, address auctionAddress, AuctionType auctionType);
+    event AuctionCreated(uint256 auctionId, address auctionAddress, AuctionType auctionType, address seller);
 
     constructor(address initialOwner) Ownable(initialOwner) {}
 
@@ -104,7 +104,7 @@ contract AuctionFactory is Ownable {
         transferAssetToContract(msg.sender, _assetAddress, _assetType, _assetId, _amount, newAuction, address(this));
 
         auctions[auctionCount] = newAuction;
-        emit AuctionCreated(auctionCount, newAuction, AuctionType.English);
+        emit AuctionCreated(auctionCount, newAuction, AuctionType.English, msg.sender);
         return newAuction;
     }
 
@@ -141,7 +141,7 @@ contract AuctionFactory is Ownable {
         transferAssetToContract(msg.sender, _assetAddress, _assetType, _assetId, _amount, newAuction, address(this));
 
         auctions[auctionCount] = newAuction;
-        emit AuctionCreated(auctionCount, newAuction, AuctionType.Dutch);
+        emit AuctionCreated(auctionCount, newAuction, AuctionType.Dutch, msg.sender);
         return newAuction;
     }
 
