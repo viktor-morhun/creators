@@ -1,7 +1,7 @@
 // src/components/user/WalletConnect.tsx
 import { useState } from 'react';
 import { useWeb3 } from '../../hooks/useWeb3';
-import { useAppDispatch } from '../../hooks/redux';
+//import { useAppDispatch } from '../../hooks/redux';
 
 const WalletConnect: React.FC = () => {
   const { address: account, connect, disconnect } = useWeb3();

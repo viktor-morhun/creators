@@ -27,7 +27,7 @@ const BidForm: React.FC<BidFormProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   // Redux state
-  const { isConnected, balance, address } = useAppSelector(
+  const { isConnected, balance,/* address*/ } = useAppSelector(
     (state) => state.web3
   );
 
