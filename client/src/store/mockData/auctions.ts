@@ -32,7 +32,7 @@ export const MOCK_AUCTIONS: AuctionItem[] = [
     id: '2',
     title: 'Neon Genesis Collection',
     description: 'A collection inspired by the iconic anime series. This digital collectible pays homage to the groundbreaking animation and storytelling of the original show.',
-    imageUrl: 'https://images.unsplash.com/photo-1633540190277-29aca58cc587?q=80&w=1642',
+    imageUrl: 'https://t3.ftcdn.net/jpg/09/21/81/20/360_F_921812068_wO9Td4qdKzImWIoHkXufknpWbN7H2XyD.jpg',
     currentBid: toWei(1.2),
     currency: 'ETH',
     endTime: now + (2 * DAY), // 2 days from now
@@ -168,7 +168,7 @@ export const MOCK_AUCTIONS: AuctionItem[] = [
     id: '10',
     title: 'Blockchain Cityscapes',
     description: 'A series depicting major cities reimagined as blockchain-powered metropolises of the future. Each piece represents the fusion of urban life with decentralized technology.',
-    imageUrl: 'https://images.unsplash.com/photo-1569585723035-0e9be4e41807?q=80&w=2070',
+    imageUrl: 'https://t3.ftcdn.net/jpg/09/21/81/20/360_F_921812068_wO9Td4qdKzImWIoHkXufknpWbN7H2XyD.jpg',
     currentBid: toWei(1.8),
     currency: 'ETH',
     endTime: now - (2 * HOUR), // 2 hours ago (ended)

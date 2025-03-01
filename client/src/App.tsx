@@ -3,18 +3,24 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { useState, useEffect } from 'react';
 import { Provider } from 'react-redux';
-import { store } from './store/store';
 
 // Layout component
 import Layout from './components/layout/Layout';
 
 // Page components
 import HomePage from './pages/HomePage';
-// import AuctionDetailsPage from './pages/AuctionDetailsPage';
-// import AuctionListPage from './pages/AuctionListPage';
-// import CreateAuctionPage from './pages/CreateAuctionPage';
+ import AuctionDetailsPage from './pages/AuctionDetailPage';
+ import AuctionListPage from './pages/AuctionListPage';
+ import CreateAuctionPage from './pages/CreateAuctionPage';
 // import UserProfilePage from './pages/UserProfilePage';
 import NotFoundPage from './pages/NotFoundPage';
+
+// In your index.tsx or App.tsx
+import { store } from './store/store';
+import { initializeWeb3 } from './store/slices/web3Slice';
+
+// Initialize web3 connection listeners
+initializeWeb3(store.dispatch);
 
 function App() {
   const [isLoading, setIsLoading] = useState(true);
@@ -50,10 +56,10 @@ function App() {
           <Routes>
             {/* All Routes (no protected routes) */}
             <Route path="/" element={<HomePage />} />
-            {/* <Route path="/auctions" element={<ExplorePage />} />
             <Route path="/auction/:id" element={<AuctionDetailsPage />} />
             <Route path="/create" element={<CreateAuctionPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/auctions" element={<AuctionListPage />} />
+          {/*  <Route path="/profile" element={<ProfilePage />} />
             <Route path="/my-bids" element={<MyBidsPage />} />
             <Route path="/my-auctions" element={<MyAuctionsPage />} />
             <Route path="/settings" element={<SettingsPage />} />

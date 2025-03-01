@@ -1,6 +1,7 @@
 // src/components/user/WalletConnect.tsx
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useWeb3 } from '../../hooks/useWeb3';
+import { useAppDispatch } from '../../hooks/redux';
 
 const WalletConnect: React.FC = () => {
   const { address: account, connect, disconnect } = useWeb3();
@@ -16,7 +17,9 @@ const WalletConnect: React.FC = () => {
     setIsConnecting(false);
   };
 
+
   if (account) {
+    
     return (
       <div className="flex items-center">
         <div className="hidden md:block mr-3">
