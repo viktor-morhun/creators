@@ -336,7 +336,7 @@ contract DutchAuction is IAuction, ReentrancyGuard, IERC1155Receiver {
         );
     }
 
-    function supportsInterface(bytes4 interfaceId) public view override returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public pure override returns (bool) {
         return interfaceId == type(IERC1155Receiver).interfaceId || interfaceId == type(IERC165).interfaceId;
     }
 
