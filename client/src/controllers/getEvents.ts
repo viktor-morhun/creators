@@ -14,7 +14,7 @@ enum AssetType {
 }
 
 // Interface for AuctionCreated event
-interface AuctionCreatedEvent {
+export interface AuctionCreatedEvent {
   auctionId: string;
   auctionAddress: string;
   auctionType: number; // 0 for English, 1 for Dutch
@@ -23,14 +23,14 @@ interface AuctionCreatedEvent {
 }
 
 // Interface for BidPlaced event
-interface BidPlacedEvent {
+export interface BidPlacedEvent {
   bidder: string;
   amount: string; // In wei
   blockNumber: number;
 }
 
 // Interface for Auction Details from getAuctionDetails
-interface AuctionDetails {
+export interface AuctionDetails {
   seller: string;
   highestBidder: string;
   highestBid: string; // In wei

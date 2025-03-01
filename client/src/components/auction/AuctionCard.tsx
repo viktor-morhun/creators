@@ -1,4 +1,3 @@
-// src/components/auction/AuctionCard.tsx
 import React from 'react';
 import { Link } from 'react-router-dom';
 import CountdownTimer from './CountdownTimer';
@@ -13,11 +12,8 @@ interface AuctionCardProps {
     currentBid: string; // in wei
     currency: string;
     endTime: number; // timestamp
-    auctionType: 'english' | 'dutch' | 'sealed' | 'timed';
-    seller: {
-      address: string;
-      name: string;
-    };
+    auctionType: 'english' | 'dutch';
+    seller: string;
     bidCount: number;
   };
 }
@@ -32,10 +28,10 @@ const AuctionCard: React.FC<AuctionCardProps> = ({ auction }) => {
     endTime,
     auctionType,
     seller,
-    bidCount
+    bidCount,
   } = auction;
 
-  // Convert Wei to ETH using Web3.js instead of ethers
+  // Convert Wei to ETH using Web3.js
   const formattedBid = parseFloat(Web3.utils.fromWei(currentBid, 'ether')).toFixed(3);
 
   return (

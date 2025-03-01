@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from "react";
 import AuctionCard from "../components/auction/AuctionCard";
 import { Link } from "react-router-dom";
-import MOCK_AUCTIONS from "../store/mockData/auctions";
+import {
+  getAuctions,
+  getAuctionDetails,
+  getAuctionBids,
+  AuctionCreatedEvent,
+  AuctionDetails,
+} from "../controllers/getEvents";
+import { ethers } from "ethers";
+import { config } from "../config";
 
 // Filter options
 type FilterOption = {
@@ -11,96 +19,170 @@ type FilterOption = {
 
 const AUCTION_TYPE_FILTERS: FilterOption[] = [
   { label: "All Types", value: "all" },
-  { label: "English", value: "english" },
-  { label: "Dutch", value: "dutch" },
-  { label: "Sealed Bid", value: "sealed" },
-  { label: "Timed", value: "timed" },
+  { label: "English", value: "0" },
+  { label: "Dutch", value: "1" },
 ];
 
 const SORT_OPTIONS: FilterOption[] = [
   { label: "Ending Soon", value: "ending-soon" },
   { label: "Recently Listed", value: "recent" },
-  { label: "Price: Low to High", value: "price-asc" },
-  { label: "Price: High to Low", value: "price-desc" },
+  { label: "Highest Bid: Low to High", value: "price-asc" },
+  { label: "Highest Bid: High to Low", value: "price-desc" },
   { label: "Most Bids", value: "bids" },
 ];
 
 const AuctionsListPage: React.FC = () => {
-  const [auctions, setAuctions] = useState(MOCK_AUCTIONS);
-  const [filteredAuctions, setFilteredAuctions] = useState(MOCK_AUCTIONS);
-  const [loading, setLoading] = useState(false);
+  const [auctions, setAuctions] = useState<AuctionCreatedEvent[]>([]);
+  const [auctionDetails, setAuctionDetails] = useState<Map<string, AuctionDetails>>(new Map());
+  const [bidCounts, setBidCounts] = useState<Map<string, number>>(new Map());
+  const [imageUrls, setImageUrls] = useState<Map<string, string>>(new Map());
+  const [currencies, setCurrencies] = useState<Map<string, string>>(new Map());
+  const [filteredAuctions, setFilteredAuctions] = useState<AuctionCreatedEvent[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [auctionTypeFilter, setAuctionTypeFilter] = useState("all");
   const [sortOption, setSortOption] = useState("ending-soon");
   const [visibleCount, setVisibleCount] = useState(8);
 
-  //setLoading(true);
-  // Fetch auctions
-  useEffect(() => {
-    // This would be an API call in a real application
-    // setLoading(true);
-    // fetchAuctions().then(data => {
-    //   setAuctions(data);
-    //   setFilteredAuctions(data);
-    //   setLoading(false);
-    // });
-
-    // Using mock data for now
-    setAuctions(MOCK_AUCTIONS);
-    setFilteredAuctions(MOCK_AUCTIONS);
-    if (false) {
-      console.log(setLoading);
+  // Fetch additional data (image URL for ERC721, token symbol)
+  const fetchNFTImage = async (assetAddress: string, assetId: number): Promise<string> => {
+    try {
+      const provider = new ethers.JsonRpcProvider(config.rpcUrl);
+      const nftContract = new ethers.Contract(assetAddress, ['function tokenURI(uint256) view returns (string)'], provider);
+      const tokenUri = await nftContract.tokenURI(assetId);
+      const response = await fetch(tokenUri);
+      const metadata = await response.json();
+      return metadata.image || "https://via.placeholder.com/300x200?text=NFT+Image+Not+Found";
+    } catch (error) {
+      console.error(`Error fetching NFT image for ${assetAddress}/${assetId}:`, error);
+      return "https://via.placeholder.com/300x200?text=NFT+Image+Not+Found";
     }
+  };
+
+  const fetchTokenSymbol = async (paymentToken: string): Promise<string> => {
+    try {
+      const provider = new ethers.JsonRpcProvider(config.rpcUrl);
+      const tokenContract = new ethers.Contract(paymentToken, ['function symbol() view returns (string)'], provider);
+      return await tokenContract.symbol();
+    } catch (error) {
+      console.error(`Error fetching token symbol for ${paymentToken}:`, error);
+      return "ETH"; // Fallback
+    }
+  };
+
+  // Fetch auctions and their details on mount
+  useEffect(() => {
+    const fetchAuctions = async () => {
+      try {
+        setLoading(true);
+        const fetchedAuctions = await getAuctions(8, 0); // Fetch 8 auctions initially
+        setAuctions(fetchedAuctions);
+
+        const detailsMap = new Map<string, AuctionDetails>();
+        const bidsMap = new Map<string, number>();
+        const imagesMap = new Map<string, string>();
+        const currenciesMap = new Map<string, string>();
+
+        await Promise.all(
+          fetchedAuctions.map(async (auction) => {
+            // Fetch auction details
+            const details = await getAuctionDetails(auction.auctionAddress);
+            details.type = auction.auctionType; // Add auctionType to details
+            detailsMap.set(auction.auctionAddress, details);
+
+            // Fetch bid count
+            const bids = await getAuctionBids(auction.auctionAddress, 10, 0); // Fetch up to 100 bids
+            bidsMap.set(auction.auctionAddress, bids.length);
+
+            // Fetch image URL (only for ERC721)
+            if (details.amount === "0") { // ERC721
+              const imageUrl = await fetchNFTImage(details.assetAddress, details.assetId);
+              imagesMap.set(auction.auctionAddress, imageUrl);
+            } else { // ERC20
+              imagesMap.set(auction.auctionAddress, `https://via.placeholder.com/300x200?text=Token+${ethers.formatEther(details.amount)}`);
+            }
+
+            // Fetch currency symbol
+            const currency = await fetchTokenSymbol(details.paymentToken);
+            currenciesMap.set(auction.auctionAddress, currency);
+          })
+        );
+
+        setAuctionDetails(detailsMap);
+        setBidCounts(bidsMap);
+        setImageUrls(imagesMap);
+        setCurrencies(currenciesMap);
+        setFilteredAuctions(fetchedAuctions);
+      } catch (error) {
+        console.error("Error fetching auctions:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAuctions();
   }, []);
 
   // Apply filters and sorting
   useEffect(() => {
     let result = [...auctions];
 
-    // Apply search filter
+    // Apply search filter (by seller address)
     if (searchTerm) {
-      result = result.filter(
-        (auction) =>
-          auction.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          auction.seller.name.toLowerCase().includes(searchTerm.toLowerCase())
+      result = result.filter((auction) =>
+        auction.seller.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
     // Apply auction type filter
     if (auctionTypeFilter !== "all") {
       result = result.filter(
-        (auction) => auction.auctionType === auctionTypeFilter
+        (auction) => auction.auctionType === Number(auctionTypeFilter)
       );
     }
+
+    // Ensure we have details for sorting
+    result = result.filter(auction => auctionDetails.has(auction.auctionAddress));
 
     // Apply sorting
     switch (sortOption) {
       case "ending-soon":
-        result.sort((a, b) => a.endTime - b.endTime);
+        result.sort((a, b) => {
+          const aDetails = auctionDetails.get(a.auctionAddress)!;
+          const bDetails = auctionDetails.get(b.auctionAddress)!;
+          return aDetails.endTime - bDetails.endTime;
+        });
         break;
       case "recent":
-        // In a real app, you would sort by creation timestamp
-        result.sort((a, b) => parseInt(b.id) - parseInt(a.id));
+        result.sort((a, b) => b.blockNumber - a.blockNumber);
         break;
       case "price-asc":
-        result.sort(
-          (a, b) => parseFloat(a.currentBid) - parseFloat(b.currentBid)
-        );
+        result.sort((a, b) => {
+          const aDetails = auctionDetails.get(a.auctionAddress)!;
+          const bDetails = auctionDetails.get(b.auctionAddress)!;
+          return Number(aDetails.highestBid) - Number(bDetails.highestBid);
+        });
         break;
       case "price-desc":
-        result.sort(
-          (a, b) => parseFloat(b.currentBid) - parseFloat(a.currentBid)
-        );
+        result.sort((a, b) => {
+          const aDetails = auctionDetails.get(a.auctionAddress)!;
+          const bDetails = auctionDetails.get(b.auctionAddress)!;
+          return Number(bDetails.highestBid) - Number(aDetails.highestBid);
+        });
         break;
       case "bids":
-        result.sort((a, b) => b.bidCount - a.bidCount);
+        result.sort((a, b) => {
+          const aBids = bidCounts.get(a.auctionAddress) || 0;
+          const bBids = bidCounts.get(b.auctionAddress) || 0;
+          return bBids - aBids;
+        });
         break;
       default:
         break;
     }
 
     setFilteredAuctions(result);
-  }, [auctions, searchTerm, auctionTypeFilter, sortOption]);
+  }, [auctions, auctionDetails, bidCounts, searchTerm, auctionTypeFilter, sortOption]);
 
   const loadMore = () => {
     setVisibleCount((prev) => prev + 8);
@@ -128,7 +210,7 @@ const AuctionsListPage: React.FC = () => {
             <div className="w-full md:w-auto relative">
               <input
                 type="text"
-                placeholder="Search auctions..."
+                placeholder="Search by seller address..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="bg-gray-700 border border-gray-600 rounded-lg py-2 pl-10 pr-4 text-white w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -292,9 +374,30 @@ const AuctionsListPage: React.FC = () => {
 
               {/* Auction Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {filteredAuctions.slice(0, visibleCount).map((auction) => (
-                  <AuctionCard key={auction.id} auction={auction} />
-                ))}
+                {filteredAuctions.slice(0, visibleCount).map((auction) => {
+                  const details = auctionDetails.get(auction.auctionAddress);
+                  return details ? (
+                    <AuctionCard
+                      key={auction.auctionId}
+                      auction={{
+                        id: auction.auctionId,
+                        auctionAddress: auction.auctionAddress,
+                        seller: auction.seller,
+                        currentBid: details.highestBid,
+                        endTime: details.endTime,
+                        auctionType: auction.auctionType,
+                        paymentToken: details.paymentToken,
+                        assetAddress: details.assetAddress,
+                        assetId: details.assetId,
+                        amount: details.amount,
+                        ended: details.ended,
+                        bidCount: bidCounts.get(auction.auctionAddress) || 0,
+                        imageUrl: imageUrls.get(auction.auctionAddress) || "https://via.placeholder.com/300x200?text=Loading",
+                        currency: currencies.get(auction.auctionAddress) || "ETH",
+                      }}
+                    />
+                  ) : null;
+                })}
               </div>
 
               {/* Load More Button */}
@@ -375,35 +478,6 @@ const AuctionsListPage: React.FC = () => {
                       <p className="text-gray-300 text-sm">
                         Price decreases over time until someone agrees to buy at
                         the current price.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-gray-700 p-5 rounded-xl border border-gray-600">
-                  <div className="flex items-start">
-                    <div className="bg-indigo-600/20 p-2 rounded-lg mr-4">
-                      <svg
-                        className="w-6 h-6 text-indigo-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={1.5}
-                          d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                        />
-                      </svg>
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold mb-1">
-                        Sealed Bid Auction
-                      </h3>
-                      <p className="text-gray-300 text-sm">
-                        Bids are kept private until the end, when the highest
-                        bidder wins.
                       </p>
                     </div>
                   </div>
