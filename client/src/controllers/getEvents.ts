@@ -8,6 +8,10 @@ const provider = new ethers.JsonRpcProvider(config.rpcUrl);
 // Event signatures for filtering
 const AUCTION_CREATED_TOPIC = ethers.id('AuctionCreated(uint256,address,uint8,address)');
 const BID_PLACED_TOPIC = ethers.id('BidPlaced(address,uint256)');
+enum AssetType {
+  ERC20 = 0,
+  ERC721 = 1,
+}
 
 // Interface for AuctionCreated event
 interface AuctionCreatedEvent {
@@ -37,6 +41,35 @@ interface AuctionDetails {
   amount: string; // In wei
   paymentToken: string;
   type: number; // 0 for English, 1 for Dutch
+}
+
+
+async function checkApproval(
+  assetType: AssetType,
+  assetAddress: string,
+  owner: string,
+  target: string,
+  assetId?: number, // Optional, required for ERC721 and ERC1155
+  amount?: string // Optional, required for ERC20 and ERC1155, in wei
+): Promise<boolean> {
+  try {
+    if (assetType === AssetType.ERC20) {
+      if (!amount) throw new Error('Amount is required for ERC20');
+      const tokenContract = new ethers.Contract(assetAddress, config.erc20Abi, provider);
+      const allowance = await tokenContract.allowance(owner, target);
+      return allowance >= BigInt(amount); // Compare with required amount
+    } else if (assetType === AssetType.ERC721) {
+      if (assetId === undefined) throw new Error('assetId is required for ERC721');
+      const nftContract = new ethers.Contract(assetAddress, config.erc721Abi, provider);
+      const approvedAddress = await nftContract.getApproved(assetId);
+      return approvedAddress.toLowerCase() === target.toLowerCase();
+    } else {
+      throw new Error('Unsupported asset type');
+    }
+  } catch (error) {
+    console.error('Error checking approval:', error);
+    return false; // Return false if there's an error (e.g., contract call fails)
+  }
 }
 
 async function getUserAuctions(

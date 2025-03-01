@@ -2,6 +2,8 @@ import { ethers } from "ethers";
 
 import { config } from "../config";
 
+
+
 async function sendTransactionToMetamask(
   txRequest: ethers.TransactionRequest
 ): Promise<ethers.TransactionResponse> {
@@ -23,6 +25,8 @@ enum AssetType {
   ERC20 = 0,
   ERC721 = 1,
 }
+
+
 
 async function approveAsset(
   assetType: AssetType,
