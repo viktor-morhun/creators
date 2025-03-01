@@ -8,6 +8,44 @@ import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+function transferAssetToContract(
+    address _from,
+    address _assetAddress,
+    AuctionFactory.AssetType _assetType,
+    uint256 _assetId,
+    uint256 _amount,
+    address _to,
+    address _allowance_to
+) {
+    if (_assetType == AuctionFactory.AssetType.ERC721) {
+        require(IERC721(_assetAddress).getApproved(_assetId) == _allowance_to, "Contract not approved for ERC721");
+        IERC721(_assetAddress).transferFrom(_from, _to, _assetId);
+    } else if (_assetType == AuctionFactory.AssetType.ERC20) {
+        require(IERC20(_assetAddress).allowance(_from, _allowance_to) >= _amount, "Insufficient ERC20 allowance");
+        IERC20(_assetAddress).transferFrom(_from, _to, _amount);
+    } else if (_assetType == AuctionFactory.AssetType.ERC1155) {
+        require(IERC1155(_assetAddress).isApprovedForAll(_from, _allowance_to), "Contract not approved for ERC1155");
+        IERC1155(_assetAddress).safeTransferFrom(_from, _to, _assetId, _amount, "");
+    }
+}
+
+function checkTransferAssetToContract(
+    address _from,
+    address _assetAddress,
+    AuctionFactory.AssetType _assetType,
+    uint256 _assetId,
+    uint256 _amount,
+    address _allowance_to
+) view {
+    if (_assetType == AuctionFactory.AssetType.ERC721) {
+        require(IERC721(_assetAddress).getApproved(_assetId) == _allowance_to, "Contract not approved for ERC721");
+    } else if (_assetType == AuctionFactory.AssetType.ERC20) {
+        require(IERC20(_assetAddress).allowance(_from, _allowance_to) >= _amount, "Insufficient ERC20 allowance");
+    } else if (_assetType == AuctionFactory.AssetType.ERC1155) {
+        require(IERC1155(_assetAddress).isApprovedForAll(_from, _allowance_to), "Contract not approved for ERC1155");
+    }
+}
+
 interface IAuction {
     function placeBid(uint256 bidAmount) external;
     function endAuction() external;
@@ -42,11 +80,12 @@ contract AuctionFactory is Ownable {
         uint256 _amount,
         address _paymentToken,
         uint256 _duration,
-        uint256 _startingPrice,
-        uint256 _reservePrice
+        uint256 _startingPrice
     ) external returns (address) {
         require(_assetAddress != address(0), "Invalid asset address");
         require(_duration > 0, "Duration must be greater than 0");
+        
+        checkTransferAssetToContract(msg.sender, _assetAddress, _assetType, _assetId, _amount, address(this));
 
         auctionCount++;
         address newAuction = address(
@@ -58,10 +97,12 @@ contract AuctionFactory is Ownable {
                 _amount,
                 _paymentToken,
                 _duration,
-                _startingPrice,
-                _reservePrice
+                _startingPrice
             )
         );
+
+        transferAssetToContract(msg.sender, _assetAddress, _assetType, _assetId, _amount, newAuction, address(this));
+
         auctions[auctionCount] = newAuction;
         emit AuctionCreated(auctionCount, newAuction, AuctionType.English);
         return newAuction;
@@ -80,6 +121,8 @@ contract AuctionFactory is Ownable {
         require(_assetAddress != address(0), "Invalid asset address");
         require(_duration > 0, "Duration must be greater than 0");
 
+        checkTransferAssetToContract(msg.sender, _assetAddress, _assetType, _assetId, _amount, address(this));
+
         auctionCount++;
         address newAuction = address(
             new DutchAuction(
@@ -94,6 +137,9 @@ contract AuctionFactory is Ownable {
                 _reservePrice
             )
         );
+
+        transferAssetToContract(msg.sender, _assetAddress, _assetType, _assetId, _amount, newAuction, address(this));
+
         auctions[auctionCount] = newAuction;
         emit AuctionCreated(auctionCount, newAuction, AuctionType.Dutch);
         return newAuction;
@@ -130,8 +176,7 @@ contract EnglishAuction is IAuction, ReentrancyGuard, IERC1155Receiver {
         uint256 _amount,
         address _paymentToken,
         uint256 _duration,
-        uint256 _startingPrice,
-        uint256 _reservePrice
+        uint256 _startingPrice
     ) {
         seller = _seller;
         assetType = _assetType;
@@ -141,9 +186,6 @@ contract EnglishAuction is IAuction, ReentrancyGuard, IERC1155Receiver {
         paymentToken = _paymentToken;
         endTime = block.timestamp + _duration;
         startingPrice = _startingPrice;
-        reservePrice = _reservePrice;
-
-        transferAssetToContract(_seller, _assetAddress, _assetType, _assetId, _amount);
     }
 
     function placeBid(uint256 _bidAmount) external override nonReentrant {
@@ -181,25 +223,6 @@ contract EnglishAuction is IAuction, ReentrancyGuard, IERC1155Receiver {
 
     function supportsInterface(bytes4 interfaceId) public view override returns (bool) {
         return interfaceId == type(IERC1155Receiver).interfaceId || interfaceId == type(IERC165).interfaceId;
-    }
-
-    function transferAssetToContract(
-        address _from,
-        address _assetAddress,
-        AuctionFactory.AssetType _assetType,
-        uint256 _assetId,
-        uint256 _amount
-    ) internal {
-        if (_assetType == AuctionFactory.AssetType.ERC721) {
-            require(IERC721(_assetAddress).getApproved(_assetId) == address(this), "Contract not approved for ERC721");
-            IERC721(_assetAddress).transferFrom(_from, address(this), _assetId);
-        } else if (_assetType == AuctionFactory.AssetType.ERC20) {
-            require(IERC20(_assetAddress).allowance(_from, address(this)) >= _amount, "Insufficient ERC20 allowance");
-            IERC20(_assetAddress).transferFrom(_from, address(this), _amount);
-        } else if (_assetType == AuctionFactory.AssetType.ERC1155) {
-            require(IERC1155(_assetAddress).isApprovedForAll(_from, address(this)), "Contract not approved for ERC1155");
-            IERC1155(_assetAddress).safeTransferFrom(_from, address(this), _assetId, _amount, "");
-        }
     }
 
     function finalizeAuction() internal {
@@ -273,8 +296,6 @@ contract DutchAuction is IAuction, ReentrancyGuard, IERC1155Receiver {
         startingPrice = _startingPrice;
         reservePrice = _reservePrice;
         duration = _duration;
-
-        transferAssetToContract(_seller, _assetAddress, _assetType, _assetId, _amount);
     }
 
     function getCurrentPrice() public view returns (uint256) {
@@ -317,25 +338,6 @@ contract DutchAuction is IAuction, ReentrancyGuard, IERC1155Receiver {
 
     function supportsInterface(bytes4 interfaceId) public view override returns (bool) {
         return interfaceId == type(IERC1155Receiver).interfaceId || interfaceId == type(IERC165).interfaceId;
-    }
-
-    function transferAssetToContract(
-        address _from,
-        address _assetAddress,
-        AuctionFactory.AssetType _assetType,
-        uint256 _assetId,
-        uint256 _amount
-    ) internal {
-        if (_assetType == AuctionFactory.AssetType.ERC721) {
-            require(IERC721(_assetAddress).getApproved(_assetId) == address(this), "Contract not approved for ERC721");
-            IERC721(_assetAddress).transferFrom(_from, address(this), _assetId);
-        } else if (_assetType == AuctionFactory.AssetType.ERC20) {
-            require(IERC20(_assetAddress).allowance(_from, address(this)) >= _amount, "Insufficient ERC20 allowance");
-            IERC20(_assetAddress).transferFrom(_from, address(this), _amount);
-        } else if (_assetType == AuctionFactory.AssetType.ERC1155) {
-            require(IERC1155(_assetAddress).isApprovedForAll(_from, address(this)), "Contract not approved for ERC1155");
-            IERC1155(_assetAddress).safeTransferFrom(_from, address(this), _assetId, _amount, "");
-        }
     }
 
     function finalizeAuction() internal {
