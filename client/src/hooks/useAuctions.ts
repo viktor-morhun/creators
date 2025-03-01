@@ -1,207 +1,50 @@
 import { useState, useEffect, useCallback } from 'react';
 import useWeb3 from './useWeb3';
+import Web3 from 'web3';
+import { AuctionDetails } from '../components/auction/AuctionCard';
+import MOCK_AUCTIONS from '../store/mockData/auctions';
 
-// Auction types
-export interface AuctionItem {
-  id: string;
-  title: string;
-  description: string;
-  imageUrl: string;
-  currentBid: number;
-  currency: string;
-  endTime: Date;
-  creator: {
-    name: string;
-    address: string;
-    avatar?: string;
-  };
-  bidCount: number;
-  auctionType: 'english' | 'dutch' | 'sealed' | 'timed';
-  tokenType: 'ERC721' | 'ERC1155' | 'ERC20' | 'physical';
-  chainId: number;
-}
-
-// Hook return type
+// Hook return type with updated AuctionDetails type
 interface UseAuctionsReturn {
-  allAuctions: AuctionItem[];
-  featuredAuctions: AuctionItem[];
-  recentAuctions: AuctionItem[];
-  popularAuctions: AuctionItem[];
-  endingSoonAuctions: AuctionItem[];
-  myBids: AuctionItem[];
-  myCreatedAuctions: AuctionItem[];
-  myWonAuctions: AuctionItem[];
+  allAuctions: AuctionDetails[];
+  featuredAuctions: AuctionDetails[];
+  recentAuctions: AuctionDetails[];
+  popularAuctions: AuctionDetails[];
+  endingSoonAuctions: AuctionDetails[];
+  myBids: AuctionDetails[];
+  myCreatedAuctions: AuctionDetails[];
+  myWonAuctions: AuctionDetails[];
   loading: boolean;
   error: string | null;
   fetchAuctions: () => Promise<void>;
-  fetchAuction: (id: string) => Promise<AuctionItem | null>;
+  fetchAuction: (id: string) => Promise<AuctionDetails | null>;
   refreshAuction: (id: string) => Promise<void>;
-  searchAuctions: (query: string) => Promise<AuctionItem[]>;
-  filterAuctions: (filters: AuctionFilters) => Promise<AuctionItem[]>;
+  searchAuctions: (query: string) => Promise<AuctionDetails[]>;
+  filterAuctions: (filters: AuctionFilters) => Promise<AuctionDetails[]>;
 }
 
 interface AuctionFilters {
-  type?: 'english' | 'dutch' | 'sealed' | 'timed';
-  tokenType?: 'ERC721' | 'ERC1155' | 'ERC20' | 'physical';
-  minPrice?: number;
-  maxPrice?: number;
-  status?: 'active' | 'ended' | 'upcoming';
-  chainId?: number;
+  type?: number; // Updated to match the actual type (0 for English, 1 for Dutch)
+  minPrice?: string; // Changed to string to match wei format
+  maxPrice?: string;
+  status?: 'active' | 'ended';
 }
 
-// Mock data for development
-const MOCK_AUCTIONS: AuctionItem[] = [
-  {
-    id: '1',
-    title: 'Cosmic Dreamscape #42',
-    description: 'A stunning digital artwork depicting the dreams of the cosmos. This unique NFT combines elements of fantasy and space to create a mesmerizing visual experience.',
-    imageUrl: 'https://images.unsplash.com/photo-1634986666676-ec8fd927c23d?q=80&w=2070',
-    currentBid: 0.75,
-    currency: 'ETH',
-    endTime: new Date(Date.now() + 86400000), // 24h from now
-    creator: {
-      name: 'DigitalArtist',
-      address: '0x1234...5678',
-      avatar: 'https://randomuser.me/api/portraits/women/44.jpg'
-    },
-    bidCount: 8,
-    auctionType: 'english',
-    tokenType: 'ERC721',
-    chainId: 1
-  },
-  {
-    id: '2',
-    title: 'Neon Genesis Collection',
-    description: 'A collection inspired by the iconic anime series. This digital collectible pays homage to the groundbreaking animation and storytelling of the original show.',
-    imageUrl: 'https://images.unsplash.com/photo-1633540190277-29aca58cc587?q=80&w=1642',
-    currentBid: 1.2,
-    currency: 'ETH',
-    endTime: new Date(Date.now() + 172800000), // 48h from now
-    creator: {
-      name: 'CryptoCreator',
-      address: '0x5678...9012',
-      avatar: 'https://randomuser.me/api/portraits/men/32.jpg'
-    },
-    bidCount: 12,
-    auctionType: 'timed',
-    tokenType: 'ERC1155',
-    chainId: 137
-  },
-  {
-    id: '3',
-    title: 'Abstract Dimensions #7',
-    description: 'An exploration of geometric shapes and vibrant colors that push the boundaries of digital art. This NFT is part of a limited series exploring mathematical concepts through visual art.',
-    imageUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1964',
-    currentBid: 0.35,
-    currency: 'ETH',
-    endTime: new Date(Date.now() + 43200000), // 12h from now
-    creator: {
-      name: 'BlockchainArtist',
-      address: '0x9012...3456',
-      avatar: 'https://randomuser.me/api/portraits/women/68.jpg'
-    },
-    bidCount: 5,
-    auctionType: 'dutch',
-    tokenType: 'ERC721',
-    chainId: 1
-  },
-  {
-    id: '4',
-    title: 'Digital Relic #003',
-    description: 'A digital artifact representing the early days of cryptocurrency. This unique token combines historical elements with futuristic design motifs.',
-    imageUrl: 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=1974',
-    currentBid: 2.5,
-    currency: 'ETH',
-    endTime: new Date(Date.now() + 345600000), // 4 days from now
-    creator: {
-      name: 'Web3Pioneer',
-      address: '0x3456...7890',
-      avatar: 'https://randomuser.me/api/portraits/men/21.jpg'
-    },
-    bidCount: 18,
-    auctionType: 'english',
-    tokenType: 'ERC721',
-    chainId: 42161
-  },
-  {
-    id: '5',
-    title: 'Quantum State',
-    description: 'A visualization of quantum computing concepts represented through abstract digital art. This piece explores the fascinating world of quantum mechanics through vibrant colors and shapes.',
-    imageUrl: 'https://images.unsplash.com/photo-1580927752452-89d86da3fa0a?q=80&w=2070',
-    currentBid: 0.85,
-    currency: 'ETH',
-    endTime: new Date(Date.now() + 259200000), // 3 days from now
-    creator: {
-      name: 'QuantumCreator',
-      address: '0x7890...1234',
-      avatar: 'https://randomuser.me/api/portraits/women/54.jpg'
-    },
-    bidCount: 7,
-    auctionType: 'sealed',
-    tokenType: 'ERC721',
-    chainId: 1
-  },
-  {
-    id: '6',
-    title: 'Metaverse Property Alpha',
-    description: 'Prime virtual real estate in the growing metaverse. This digital property is located in a high-traffic area with significant development potential.',
-    imageUrl: 'https://images.unsplash.com/photo-1614332287897-cdc485fa562d?q=80&w=2070',
-    currentBid: 4.2,
-    currency: 'ETH',
-    endTime: new Date(Date.now() + 518400000), // 6 days from now
-    creator: {
-      name: 'MetaBuilder',
-      address: '0x2468...1357',
-      avatar: 'https://randomuser.me/api/portraits/men/76.jpg'
-    },
-    bidCount: 25,
-    auctionType: 'english',
-    tokenType: 'ERC1155',
-    chainId: 137
-  },
-  {
-    id: '7',
-    title: 'Crypto Punk Derivative #38',
-    description: 'A unique interpretation inspired by the iconic CryptoPunks collection. This artwork pays homage to one of the pioneering NFT projects while adding a fresh artistic perspective.',
-    imageUrl: 'https://images.unsplash.com/photo-1617791160536-598cf32026fb?q=80&w=1964',
-    currentBid: 1.1,
-    currency: 'ETH',
-    endTime: new Date(Date.now() + 21600000), // 6 hours from now
-    creator: {
-      name: 'NFTRemixer',
-      address: '0x1357...2468',
-      avatar: 'https://randomuser.me/api/portraits/women/15.jpg'
-    },
-    bidCount: 9,
-    auctionType: 'timed',
-    tokenType: 'ERC721',
-    chainId: 1
-  },
-  {
-    id: '8',
-    title: 'Digital Soundwave Collection',
-    description: 'A multimedia NFT that combines visual art with an original audio composition. This unique digital asset is a feast for both the eyes and ears.',
-    imageUrl: 'https://images.unsplash.com/photo-1618172193763-c511deb635ca?q=80&w=2128',
-    currentBid: 0.45,
-    currency: 'ETH',
-    endTime: new Date(Date.now() + 129600000), // 36 hours from now
-    creator: {
-      name: 'AudioVisualArtist',
-      address: '0x9876...5432',
-      avatar: 'https://randomuser.me/api/portraits/men/42.jpg'
-    },
-    bidCount: 4,
-    auctionType: 'dutch',
-    tokenType: 'ERC721',
-    chainId: 42161
-  }
-];
+// Helper to convert ETH to Wei
+const toWei = (eth: number): string => {
+  return Web3.utils.toWei(eth.toString(), 'ether');
+};
+
+// Helper to get current timestamp
+const now = Date.now();
+const DAY = 86400000;
+const HOUR = 3600000;
+
 
 // The hook
 export const useAuctions = (): UseAuctionsReturn => {
   const { address, isConnected } = useWeb3();
-  //web3 use it
-  const [allAuctions, setAllAuctions] = useState<AuctionItem[]>([]);
+  const [allAuctions, setAllAuctions] = useState<AuctionDetails[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -225,7 +68,7 @@ export const useAuctions = (): UseAuctionsReturn => {
   }, []);
 
   // Fetch a single auction by ID
-  const fetchAuction = useCallback(async (id: string): Promise<AuctionItem | null> => {
+  const fetchAuction = useCallback(async (id: string): Promise<AuctionDetails | null> => {
     try {
       // In production, this would be an API or blockchain call
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -246,66 +89,60 @@ export const useAuctions = (): UseAuctionsReturn => {
       await new Promise(resolve => setTimeout(resolve, 300));
       
       // For mock purposes, we're not actually changing anything
-      // In a real implementation, you'd update the specific auction in state
     } catch (err) {
       console.error(`Error refreshing auction ${id}:`, err);
       setError('Failed to refresh auction data.');
     }
   }, []);
 
-  // Search auctions by query string
-  const searchAuctions = useCallback(async (query: string): Promise<AuctionItem[]> => {
+  // Search auctions by assetId or seller address
+  const searchAuctions = useCallback(async (query: string): Promise<AuctionDetails[]> => {
     if (!query.trim()) return allAuctions;
 
     const lowercaseQuery = query.toLowerCase();
     return allAuctions.filter(auction => 
-      auction.title.toLowerCase().includes(lowercaseQuery) || 
-      auction.description.toLowerCase().includes(lowercaseQuery) ||
-      auction.creator.name.toLowerCase().includes(lowercaseQuery)
+      auction.assetId.toString().includes(lowercaseQuery) ||
+      auction.seller.toLowerCase().includes(lowercaseQuery) ||
+      (auction.id && auction.id.toLowerCase().includes(lowercaseQuery))
     );
   }, [allAuctions]);
 
   // Filter auctions by criteria
-  const filterAuctions = useCallback(async (filters: AuctionFilters): Promise<AuctionItem[]> => {
+  const filterAuctions = useCallback(async (filters: AuctionFilters): Promise<AuctionDetails[]> => {
     return allAuctions.filter(auction => {
       // Filter by auction type
-      if (filters.type && auction.auctionType !== filters.type) {
-        return false;
-      }
-      
-      // Filter by token type
-      if (filters.tokenType && auction.tokenType !== filters.tokenType) {
+      if (filters.type !== undefined && auction.type !== filters.type) {
         return false;
       }
       
       // Filter by price range
-      if (filters.minPrice !== undefined && auction.currentBid < filters.minPrice) {
-        return false;
+      if (filters.minPrice !== undefined) {
+        // Convert both to BigInt for proper comparison of wei values
+        const bidValue = BigInt(auction.highestBid);
+        const minValue = BigInt(filters.minPrice);
+        if (bidValue < minValue) {
+          return false;
+        }
       }
       
-      if (filters.maxPrice !== undefined && auction.currentBid > filters.maxPrice) {
-        return false;
-      }
-      
-      // Filter by chain ID
-      if (filters.chainId !== undefined && auction.chainId !== filters.chainId) {
-        return false;
+      if (filters.maxPrice !== undefined) {
+        // Convert both to BigInt for proper comparison of wei values
+        const bidValue = BigInt(auction.highestBid);
+        const maxValue = BigInt(filters.maxPrice);
+        if (bidValue > maxValue) {
+          return false;
+        }
       }
       
       // Filter by status
       if (filters.status) {
-        const now = new Date();
-        
-        if (filters.status === 'active' && auction.endTime <= now) {
+        if (filters.status === 'active' && auction.ended) {
           return false;
         }
         
-        if (filters.status === 'ended' && auction.endTime > now) {
+        if (filters.status === 'ended' && !auction.ended) {
           return false;
         }
-        
-        // For 'upcoming', we'd need an additional field like startTime
-        // This is just a placeholder implementation
       }
       
       return true;
@@ -317,33 +154,50 @@ export const useAuctions = (): UseAuctionsReturn => {
     fetchAuctions();
   }, [fetchAuctions]);
 
-  // Derived state
+  // Derived state - Now based on the AuctionDetails structure
+  // Featured auctions - those with non-zero highest bid
   const featuredAuctions = allAuctions
-    .filter(auction => auction.bidCount > 5)
+    .filter(auction => auction.highestBidder !== '0x0000000000000000000000000000000000000000')
     .slice(0, 4);
 
+  // Recent auctions - sorted by ID (as a proxy for creation time since we don't have that field)
   const recentAuctions = [...allAuctions]
-    .sort((a, b) => b.id.localeCompare(a.id))
+    .sort((a, b) => (b.id || '').localeCompare(a.id || ''))
     .slice(0, 4);
 
+  // Popular auctions - highest bids
   const popularAuctions = [...allAuctions]
-    .sort((a, b) => b.bidCount - a.bidCount)
+    .sort((a, b) => {
+      const bidA = BigInt(a.highestBid);
+      const bidB = BigInt(b.highestBid);
+      return bidA < bidB ? 1 : bidA > bidB ? -1 : 0;
+    })
     .slice(0, 4);
 
+  // Ending soon auctions
   const endingSoonAuctions = [...allAuctions]
-    .sort((a, b) => a.endTime.getTime() - b.endTime.getTime())
+    .filter(auction => !auction.ended)
+    .sort((a, b) => a.endTime - b.endTime)
     .slice(0, 4);
   
-  // For the user's auctions (in a real implementation, these would filter based on the user's address)
-  const myBids = isConnected ? allAuctions.slice(0, 2) : [];
+  // User's auctions (in a real implementation, these would filter based on user's address)
+  const myBids = isConnected ? allAuctions
+    .filter(auction => !auction.ended && 
+            auction.highestBidder.toLowerCase() === address?.toLowerCase())
+    : [];
   
   const myCreatedAuctions = isConnected 
     ? allAuctions.filter(auction => 
-        auction.creator.address.toLowerCase() === address?.toLowerCase()
+        auction.seller.toLowerCase() === address?.toLowerCase()
       )
     : [];
   
-  const myWonAuctions = isConnected ? allAuctions.slice(2, 3) : [];
+  const myWonAuctions = isConnected 
+    ? allAuctions.filter(auction => 
+        auction.ended && 
+        auction.highestBidder.toLowerCase() === address?.toLowerCase()
+      )
+    : [];
 
   return {
     allAuctions,

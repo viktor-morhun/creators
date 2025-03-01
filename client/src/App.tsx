@@ -12,7 +12,7 @@ import HomePage from './pages/HomePage';
  import AuctionDetailsPage from './pages/AuctionDetailPage';
  import AuctionListPage from './pages/AuctionListPage';
  import CreateAuctionPage from './pages/CreateAuctionPage';
-// import UserProfilePage from './pages/UserProfilePage';
+ import UserProfilePage from './pages/UserProfilePage';
 import NotFoundPage from './pages/NotFoundPage';
 
 // In your index.tsx or App.tsx
@@ -59,8 +59,8 @@ function App() {
             <Route path="/auction/:id" element={<AuctionDetailsPage />} />
             <Route path="/create" element={<CreateAuctionPage />} />
             <Route path="/auctions" element={<AuctionListPage />} />
-          {/*  <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/my-bids" element={<MyBidsPage />} />
+            <Route path="/profile" element={<UserProfilePage />} />
+           {/* <Route path="/my-bids" element={<MyBidsPage />} />
             <Route path="/my-auctions" element={<MyAuctionsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/about" element={<AboutPage />} />

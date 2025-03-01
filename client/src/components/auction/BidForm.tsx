@@ -27,12 +27,20 @@ const BidForm: React.FC<BidFormProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   // Redux state
-  const { isConnected, balance,/* address*/ } = useAppSelector(
+  const { isConnected, balance } = useAppSelector(
     (state) => state.web3
   );
 
-  // Format current bid from wei to ETH
-  const formattedCurrentBid = Web3.utils.fromWei(currentBid, "ether");
+  // Safely format current bid from wei to ETH with error handling
+  const formattedCurrentBid = (() => {
+    try {
+      if (!currentBid) return "0";
+      return Web3.utils.fromWei(currentBid, "ether");
+    } catch (error) {
+      console.warn("Error formatting current bid:", error);
+      return "0";
+    }
+  })();
   
   // Calculate minimum bid amount (current bid + increment %)
   const minBidAmount = parseFloat(formattedCurrentBid) * (1 + minBidIncrement / 100);
@@ -42,16 +50,6 @@ const BidForm: React.FC<BidFormProps> = ({
   
   // Check if auction has ended
   const hasEnded = Date.now() > endTime;
-  
-  // Debug information
-  console.log({
-    isConnected,
-    hasEnded,
-    currentBid,
-    minBidAmount,
-    balance,
-    showForm
-  });
   
   // Reset form when auction changes
   useEffect(() => {

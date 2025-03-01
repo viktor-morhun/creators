@@ -1,59 +1,64 @@
 import React from 'react';
 
 interface AuctionTypeTagProps {
-  type: 'english' | 'dutch' | 'sealed' | 'timed';
+  type: number; // 0 for English, 1 for Dutch
+  size?: 'small' | 'medium' | 'large';
 }
 
-const AuctionTypeTag: React.FC<AuctionTypeTagProps> = ({ type }) => {
+const AuctionTypeTag: React.FC<AuctionTypeTagProps> = ({ type, size = 'medium' }) => {
   // Configuration for different auction types
   const typeConfig = {
-    english: {
+    0: { // English auction
       label: 'English',
-      bgColor: 'bg-blue-500',
-      hoverColor: 'hover:bg-blue-600',
+      bgColor: 'bg-purple-500',
+      bgOpacity: 'bg-opacity-80',
+      hoverColor: 'hover:bg-purple-600',
       icon: (
-        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <svg className="mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
         </svg>
       )
     },
-    dutch: {
+    1: { // Dutch auction
       label: 'Dutch',
-      bgColor: 'bg-orange-500',
-      hoverColor: 'hover:bg-orange-600',
+      bgColor: 'bg-blue-500',
+      bgOpacity: 'bg-opacity-80',
+      hoverColor: 'hover:bg-blue-600',
       icon: (
-        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <svg className="mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 13l-7 7-7-7m14-8l-7 7-7-7" />
-        </svg>
-      )
-    },
-    sealed: {
-      label: 'Sealed',
-      bgColor: 'bg-purple-500',
-      hoverColor: 'hover:bg-purple-600',
-      icon: (
-        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-        </svg>
-      )
-    },
-    timed: {
-      label: 'Timed',
-      bgColor: 'bg-green-500',
-      hoverColor: 'hover:bg-green-600',
-      icon: (
-        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       )
     }
   };
 
-  const config = typeConfig[type];
+  // Default to English auction if type is not recognized
+  const config = typeConfig[type] || typeConfig[0];
+  
+  // Size configurations
+  const sizeClasses = {
+    small: {
+      padding: 'px-1.5 py-0.5',
+      text: 'text-xs',
+      icon: 'w-2.5 h-2.5'
+    },
+    medium: {
+      padding: 'px-2 py-1',
+      text: 'text-xs',
+      icon: 'w-3 h-3'
+    },
+    large: {
+      padding: 'px-3 py-1.5',
+      text: 'text-sm',
+      icon: 'w-4 h-4'
+    }
+  };
+  
+  const sizeClass = sizeClasses[size];
 
   return (
-    <div className={`flex items-center px-2 py-1 rounded-lg ${config.bgColor} ${config.hoverColor} text-white text-xs font-medium transition-colors`}>
-      {config.icon}
+    <div className={`flex items-center ${sizeClass.padding} rounded-md ${config.bgColor} ${config.bgOpacity} ${config.hoverColor} text-white ${sizeClass.text} font-medium transition-colors`}>
+      {React.cloneElement(config.icon, { className: `${sizeClass.icon} ${config.icon.props.className}` })}
       {config.label}
     </div>
   );
