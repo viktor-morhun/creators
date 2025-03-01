@@ -199,7 +199,8 @@ const MOCK_AUCTIONS: AuctionItem[] = [
 
 // The hook
 export const useAuctions = (): UseAuctionsReturn => {
-  const { address, web3, isConnected } = useWeb3();
+  const { address, isConnected } = useWeb3();
+  //web3 use it
   const [allAuctions, setAllAuctions] = useState<AuctionItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
