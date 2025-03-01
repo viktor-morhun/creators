@@ -71,6 +71,9 @@ export const checkWalletConnection = () => async (dispatch: AppDispatch) => {
 
 // Listen for account and network changes
 let storeDispatch: AppDispatch | null = null;
+if (false) {
+  console.log(storeDispatch);
+}
 
 export const setupWeb3EventListeners = (dispatch: AppDispatch) => {
   storeDispatch = dispatch;
