@@ -70,10 +70,10 @@ export const checkWalletConnection = () => async (dispatch: AppDispatch) => {
 };
 
 // Listen for account and network changes
-let storeDispatch: AppDispatch | null = null;
+// let storeDispatch: AppDispatch | null = null;
 
 export const setupWeb3EventListeners = (dispatch: AppDispatch) => {
-  storeDispatch = dispatch;
+  // storeDispatch = dispatch;
   const ethereum = (window as any).ethereum;
   if (!ethereum) return;
 
