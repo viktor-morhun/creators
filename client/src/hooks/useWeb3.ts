@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Web3 from 'web3';
 import { toast } from 'react-toastify';
-import { useAppDispatch, useAppSelector } from '../hooks/redux';
+//import { useAppDispatch, useAppSelector } from '../hooks/redux';
 
 // Types
 export interface Web3State {
@@ -62,8 +62,8 @@ const initialState: Web3State = {
 
 export const useWeb3 = () => {
   const [state, setState] = useState<Web3State>(initialState);
-  const dispatch = useAppDispatch();
-  const web3State = useAppSelector(state => state.web3);
+  //const dispatch = useAppDispatch();
+  //const web3State = useAppSelector(state => state.web3);
 
   // Helper to update state
   const updateState = useCallback((newState: Partial<Web3State>) => {
