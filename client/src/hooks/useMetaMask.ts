@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react';
 
+declare global {
+  interface Window {
+    ethereum?: any;
+  }
+}
+
 const useMetaMask = () => {
   const [account, setAccount] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
