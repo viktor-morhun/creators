@@ -24,7 +24,7 @@ const HomePage: React.FC = () => {
               <Link to="/auctions" className="bg-gradient-to-r from-purple-600 to-blue-500 text-white font-medium rounded-lg text-lg px-8 py-3 hover:from-purple-700 hover:to-blue-600 transition-all">
                 Explore Auctions
               </Link>
-              <Link to="/create" className="bg-transparent border border-white text-white font-medium rounded-lg text-lg px-8 py-3 hover:bg-white hover:bg-opacity-10 transition-all">
+              <Link to="/create" className="bg-transparent border border-white text-white font-medium rounded-lg text-lg px-8 py-3 hover:bg-purple-700 hover:bg-opacity-10 transition-all">
                 Create Auction
               </Link>
             </div>

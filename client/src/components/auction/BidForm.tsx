@@ -30,6 +30,7 @@ const BidForm: React.FC<BidFormProps> = ({
   const { isConnected, balance } = useAppSelector(
     (state) => state.web3
   );
+  if (false) console.log(currency);
 
   // Safely format current bid from wei to ETH with error handling
   const formattedCurrentBid = (() => {
@@ -64,7 +65,7 @@ const BidForm: React.FC<BidFormProps> = ({
     setBidAmount(value);
     
     if (value && parseFloat(value) < minBidAmount) {
-      setError(`Minimum bid is ${formattedMinBid} ${currency}`);
+      setError(`Minimum bid is ${formattedMinBid} ${`Tokens`}`);
     } else {
       setError(null);
     }
@@ -85,7 +86,7 @@ const BidForm: React.FC<BidFormProps> = ({
     }
     
     if (!bidAmount || parseFloat(bidAmount) < minBidAmount) {
-      setError(`Minimum bid is ${formattedMinBid} ${currency}`);
+      setError(`Minimum bid is ${formattedMinBid} ${`Tokens`}`);
       return;
     }
     
@@ -95,7 +96,7 @@ const BidForm: React.FC<BidFormProps> = ({
       const bidAmountEth = parseFloat(bidAmount);
       
       if (bidAmountEth > balanceEth) {
-        toast.error(`Insufficient balance. You have ${balanceEth.toFixed(4)} ${currency}`);
+        toast.error(`Insufficient balance. You have ${balanceEth.toFixed(4)} ${`Tokens`}`);
         return;
       }
     }
@@ -133,7 +134,7 @@ const BidForm: React.FC<BidFormProps> = ({
           <div>
             <p className="text-sm text-gray-400">Current bid</p>
             <p className="text-xl font-bold text-white">
-              {parseFloat(formattedCurrentBid).toFixed(4)} {currency}
+              {parseFloat(formattedCurrentBid).toFixed(4)} {`Tokens`}
             </p>
           </div>
           
@@ -160,7 +161,7 @@ const BidForm: React.FC<BidFormProps> = ({
         <form onSubmit={handleSubmit} className="p-4">
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-300 mb-1">
-              Your bid (Min. {formattedMinBid} {currency})
+              Your bid (Min. {formattedMinBid} {`Tokens`})
             </label>
             <div className="flex rounded-md shadow-sm">
               <input
@@ -175,7 +176,7 @@ const BidForm: React.FC<BidFormProps> = ({
                 required
               />
               <div className="bg-gray-600 px-3 flex items-center justify-center rounded-r-md">
-                <span className="text-gray-300">{currency}</span>
+                <span className="text-gray-300">{`Tokens`}</span>
               </div>
             </div>
             {error && (
@@ -198,13 +199,13 @@ const BidForm: React.FC<BidFormProps> = ({
                   Processing...
                 </span>
               ) : (
-                `Place Bid of ${bidAmount || formattedMinBid} ${currency}`
+                `Place Bid of ${bidAmount || formattedMinBid} ${`Tokens`}`
               )}
             </button>
             
             {isConnected && balance && (
               <p className="text-xs text-center text-gray-400">
-                Your balance: {parseFloat(balance).toFixed(4)} {currency}
+                Your balance: {parseFloat(balance).toFixed(4)} {`Tokens`}
               </p>
             )}
             
