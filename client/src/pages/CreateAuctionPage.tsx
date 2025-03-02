@@ -189,7 +189,7 @@ const AuctionCreatePage: React.FC = () => {
       const receipt = await auctionTx.wait();
       showSuccess("Auction created successfully!");
       // Extract auction address from the AuctionCreated event (optional)
-      const auctionAddress = receipt.logs
+      const auctionAddress = (receipt !== null) &&  receipt.logs
         .map(log => new ethers.Interface(config.contractAbi).parseLog(log))
         .filter(event => event?.name === "AuctionCreated")[0]?.args.auctionAddress;
       console.log("New Auction Address:", auctionAddress);

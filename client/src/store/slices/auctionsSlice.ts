@@ -118,12 +118,12 @@ const auctionsSlice = createSlice({
         
         // Featured auctions - those with high bid counts
         state.featuredAuctions = [...auctions]
-          .sort((a, b) => b.bidCount - a.bidCount)
+          .sort((a, b) => parseInt(b.highestBid) - parseInt(a.highestBid))
           .slice(0, 4);
           
         // Recent auctions - newest first based on ID (in a real app, use creation timestamp)
         state.recentAuctions = [...auctions]
-          .sort((a, b) => parseInt(b.id) - parseInt(a.id))
+          .sort((a, b) =>b.assetId - a.assetId)
           .slice(0, 4);
           
         // Ending soon - sort by end time
@@ -135,7 +135,7 @@ const auctionsSlice = createSlice({
           
         // Popular auctions - highest bid count
         state.popularAuctions = [...auctions]
-          .sort((a, b) => b.bidCount - a.bidCount)
+          .sort((a, b) => parseInt(b.highestBid) - parseInt(a.highestBid))
           .slice(0, 8);
           
         state.loading = false;

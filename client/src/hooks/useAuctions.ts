@@ -73,7 +73,7 @@ export const useAuctions = (): UseAuctionsReturn => {
         // In production, this would be an API or blockchain call
         await new Promise((resolve) => setTimeout(resolve, 500));
 
-        const auction = MOCK_AUCTIONS.find((auction) => auction.id === id);
+        const auction = MOCK_AUCTIONS.find((auction) => auction.assetId === Number(id));
         return auction || null;
       } catch (err) {
         console.error(`Error fetching auction ${id}:`, err);

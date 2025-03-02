@@ -180,13 +180,13 @@ const UserProfilePage: React.FC = () => {
     fetchUserAuctions();
   }, [userAddress]);
 
-  // Format address for display
-  const formatAddress = (address: string | undefined): string => {
-    if (!address) return "Unknown";
-    return `${address.substring(0, 6)}...${address.substring(
-      address.length - 4
-    )}`;
-  };
+  // // Format address for display
+  // const formatAddress = (address: string | undefined): string => {
+  //   if (!address) return "Unknown";
+  //   return `${address.substring(0, 6)}...${address.substring(
+  //     address.length - 4
+  //   )}`;
+  // };
 
   return (
     <div className="container mx-auto px-4 py-8">
