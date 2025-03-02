@@ -86,17 +86,17 @@ npm run dev
 4. Access the application:
    Open your browser and navigate to http://localhost:3000. 🌍
 
-Project Structure 🗂️
+## Project Structure 🗂️
 
 A brief overview of the project layout:
 
 - `client`: Contains the React frontend codebase.
 - `contract`: Contains the Solidity smart contract code.
 
-Contributing 🤝
+## Contributing 🤝
 
 Contributions are welcome! If you have suggestions or improvements, please open an issue or submit a pull request.
 
-License 📄
+## License 📄
 
 This project is licensed under the MIT License. See the LICENSE file for details.
