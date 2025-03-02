@@ -30,6 +30,7 @@ const BidForm: React.FC<BidFormProps> = ({
   const { isConnected, balance } = useAppSelector(
     (state) => state.web3
   );
+  if (false) console.log(currency);
 
   // Safely format current bid from wei to ETH with error handling
   const formattedCurrentBid = (() => {
@@ -64,7 +65,7 @@ const BidForm: React.FC<BidFormProps> = ({
     setBidAmount(value);
     
     if (value && parseFloat(value) < minBidAmount) {
-      setError(`Minimum bid is ${formattedMinBid} ${currency}`);
+      setError(`Minimum bid is ${formattedMinBid} ${`Tokens`}`);
     } else {
       setError(null);
     }
@@ -85,7 +86,7 @@ const BidForm: React.FC<BidFormProps> = ({
     }
     
     if (!bidAmount || parseFloat(bidAmount) < minBidAmount) {
-      setError(`Minimum bid is ${formattedMinBid} ${currency}`);
+      setError(`Minimum bid is ${formattedMinBid} ${`Tokens`}`);
       return;
     }
     
@@ -95,7 +96,7 @@ const BidForm: React.FC<BidFormProps> = ({
       const bidAmountEth = parseFloat(bidAmount);
       
       if (bidAmountEth > balanceEth) {
-        toast.error(`Insufficient balance. You have ${balanceEth.toFixed(4)} ${currency}`);
+        toast.error(`Insufficient balance. You have ${balanceEth.toFixed(4)} ${`Tokens`}`);
         return;
       }
     }
