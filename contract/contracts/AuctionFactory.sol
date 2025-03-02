@@ -23,9 +23,6 @@ function transferAssetToContract(
     } else if (_assetType == AuctionFactory.AssetType.ERC20) {
         require(IERC20(_assetAddress).allowance(_from, _allowance_to) >= _amount, "Insufficient ERC20 allowance");
         IERC20(_assetAddress).transferFrom(_from, _to, _amount);
-    } else if (_assetType == AuctionFactory.AssetType.ERC1155) {
-        require(IERC1155(_assetAddress).isApprovedForAll(_from, _allowance_to), "Contract not approved for ERC1155");
-        IERC1155(_assetAddress).safeTransferFrom(_from, _to, _assetId, _amount, "");
     }
 }
 
@@ -41,13 +38,11 @@ function checkTransferAssetToContract(
         require(IERC721(_assetAddress).getApproved(_assetId) == _allowance_to, "Contract not approved for ERC721");
     } else if (_assetType == AuctionFactory.AssetType.ERC20) {
         require(IERC20(_assetAddress).allowance(_from, _allowance_to) >= _amount, "Insufficient ERC20 allowance");
-    } else if (_assetType == AuctionFactory.AssetType.ERC1155) {
-        require(IERC1155(_assetAddress).isApprovedForAll(_from, _allowance_to), "Contract not approved for ERC1155");
     }
 }
 
 interface IAuction {
-    function placeBid(uint256 bidAmount) external;
+    function placeBid(uint256 bidAmount) external payable;
     function endAuction() external;
     function getAuctionDetails() external view returns (
         address seller,
@@ -56,14 +51,16 @@ interface IAuction {
         uint256 endTime,
         bool ended,
         address assetAddress,
+        uint256 assetType,
         uint256 assetId,
         uint256 amount,
-        address paymentToken
+        address paymentToken,
+        uint8 auctionType
     );
 }
 
 contract AuctionFactory is Ownable {
-    enum AssetType { ERC20, ERC721, ERC1155 }
+    enum AssetType { ERC20, ERC721 }
     enum AuctionType { English, Dutch }
 
     mapping(uint256 => address) public auctions;
@@ -84,7 +81,7 @@ contract AuctionFactory is Ownable {
     ) external returns (address) {
         require(_assetAddress != address(0), "Invalid asset address");
         require(_duration > 0, "Duration must be greater than 0");
-        
+
         checkTransferAssetToContract(msg.sender, _assetAddress, _assetType, _assetId, _amount, address(this));
 
         auctionCount++;
@@ -178,6 +175,7 @@ contract EnglishAuction is IAuction, ReentrancyGuard, IERC1155Receiver {
         uint256 _duration,
         uint256 _startingPrice
     ) {
+        require(_paymentToken != address(this), "Payment token cannot be this contract");
         seller = _seller;
         assetType = _assetType;
         assetAddress = _assetAddress;
@@ -188,21 +186,31 @@ contract EnglishAuction is IAuction, ReentrancyGuard, IERC1155Receiver {
         startingPrice = _startingPrice;
     }
 
-    function placeBid(uint256 _bidAmount) external override nonReentrant {
+    function placeBid(uint256 bidAmount) external payable override nonReentrant {
         require(!ended, "Auction already ended");
         require(block.timestamp < endTime, "Auction time expired");
-        require(_bidAmount >= reservePrice, "Bid below reserve price");
-        require(_bidAmount > highestBid, "Bid must exceed current highest bid");
-        require(IERC20(paymentToken).allowance(msg.sender, address(this)) >= _bidAmount, "Insufficient token allowance");
+        require(bidAmount >= reservePrice, "Bid below reserve price");
+        require(bidAmount > highestBid, "Bid must exceed current highest bid");
+
+        if (paymentToken == address(0)) { // ETH
+            require(msg.value == bidAmount, "Sent ETH must equal bid amount");
+        } else { // ERC20
+            require(IERC20(paymentToken).allowance(msg.sender, address(this)) >= bidAmount, "Insufficient token allowance");
+            IERC20(paymentToken).transferFrom(msg.sender, address(this), bidAmount);
+        }
 
         if (highestBidder != address(0)) {
-            IERC20(paymentToken).transfer(highestBidder, highestBid);
+            if (paymentToken == address(0)) {
+                (bool sent, ) = highestBidder.call{value: highestBid}("");
+                require(sent, "Failed to refund ETH to previous bidder");
+            } else {
+                IERC20(paymentToken).transfer(highestBidder, highestBid);
+            }
         }
-        IERC20(paymentToken).transferFrom(msg.sender, address(this), _bidAmount);
 
         highestBidder = msg.sender;
-        highestBid = _bidAmount;
-        emit BidPlaced(msg.sender, _bidAmount);
+        highestBid = bidAmount;
+        emit BidPlaced(msg.sender, bidAmount);
     }
 
     function endAuction() external override nonReentrant {
@@ -213,11 +221,11 @@ contract EnglishAuction is IAuction, ReentrancyGuard, IERC1155Receiver {
     }
 
     function getAuctionDetails() external view override returns (
-        address, address, uint256, uint256, bool, address, uint256, uint256, address
+        address, address, uint256, uint256, bool, address, uint256, uint256, uint256, address, uint8
     ) {
         return (
             seller, highestBidder, highestBid, endTime, ended,
-            assetAddress, assetId, amount, paymentToken
+            assetAddress, uint256(assetType), assetId, amount, paymentToken, 1 // English auction type
         );
     }
 
@@ -227,13 +235,17 @@ contract EnglishAuction is IAuction, ReentrancyGuard, IERC1155Receiver {
 
     function finalizeAuction() internal {
         if (highestBidder != address(0)) {
-            IERC20(paymentToken).transfer(seller, highestBid);
+            if (paymentToken == address(0)) { // ETH
+                (bool sent, ) = seller.call{value: highestBid}("");
+                require(sent, "Failed to send ETH to seller");
+            } else { // ERC20
+                IERC20(paymentToken).transfer(seller, highestBid);
+            }
+
             if (assetType == AuctionFactory.AssetType.ERC721) {
                 IERC721(assetAddress).transferFrom(address(this), highestBidder, assetId);
             } else if (assetType == AuctionFactory.AssetType.ERC20) {
                 IERC20(assetAddress).transfer(highestBidder, amount);
-            } else if (assetType == AuctionFactory.AssetType.ERC1155) {
-                IERC1155(assetAddress).safeTransferFrom(address(this), highestBidder, assetId, amount, "");
             }
             emit AuctionEnded(highestBidder, highestBid);
         } else {
@@ -241,8 +253,6 @@ contract EnglishAuction is IAuction, ReentrancyGuard, IERC1155Receiver {
                 IERC721(assetAddress).transferFrom(address(this), seller, assetId);
             } else if (assetType == AuctionFactory.AssetType.ERC20) {
                 IERC20(assetAddress).transfer(seller, amount);
-            } else if (assetType == AuctionFactory.AssetType.ERC1155) {
-                IERC1155(assetAddress).safeTransferFrom(address(this), seller, assetId, amount, "");
             }
             emit AuctionEnded(address(0), 0);
         }
@@ -305,18 +315,24 @@ contract DutchAuction is IAuction, ReentrancyGuard, IERC1155Receiver {
         return startingPrice - priceDrop;
     }
 
-    function placeBid(uint256 _bidAmount) external override nonReentrant {
+    function placeBid(uint256 bidAmount) external payable override nonReentrant {
         require(!ended, "Auction already ended");
         require(block.timestamp < endTime, "Auction time expired");
         uint256 currentPrice = getCurrentPrice();
-        require(_bidAmount >= currentPrice, "Bid below current price");
-        require(IERC20(paymentToken).allowance(msg.sender, address(this)) >= _bidAmount, "Insufficient token allowance");
 
-        IERC20(paymentToken).transferFrom(msg.sender, address(this), _bidAmount);
+        if (paymentToken == address(0)) { // ETH
+            require(msg.value == bidAmount, "Sent ETH must equal bid amount");
+            require(bidAmount >= currentPrice, "Bid below current price");
+        } else { // ERC20
+            require(bidAmount >= currentPrice, "Bid below current price");
+            require(IERC20(paymentToken).allowance(msg.sender, address(this)) >= bidAmount, "Insufficient token allowance");
+            IERC20(paymentToken).transferFrom(msg.sender, address(this), bidAmount);
+        }
+
         highestBidder = msg.sender;
-        highestBid = _bidAmount;
+        highestBid = bidAmount;
         ended = true;
-        emit BidPlaced(msg.sender, _bidAmount);
+        emit BidPlaced(msg.sender, bidAmount);
         finalizeAuction();
     }
 
@@ -328,13 +344,14 @@ contract DutchAuction is IAuction, ReentrancyGuard, IERC1155Receiver {
     }
 
     function getAuctionDetails() external view override returns (
-        address, address, uint256, uint256, bool, address, uint256, uint256, address
+        address, address, uint256, uint256, bool, address, uint256, uint256, uint256, address, uint8
     ) {
         return (
             seller, highestBidder, highestBid, endTime, ended,
-            assetAddress, assetId, amount, paymentToken
+            assetAddress, uint256(assetType), assetId, amount, paymentToken, 1 // 1 is added to differentiate between English and Dutch auction
         );
     }
+
 
     function supportsInterface(bytes4 interfaceId) public pure override returns (bool) {
         return interfaceId == type(IERC1155Receiver).interfaceId || interfaceId == type(IERC165).interfaceId;
@@ -342,13 +359,17 @@ contract DutchAuction is IAuction, ReentrancyGuard, IERC1155Receiver {
 
     function finalizeAuction() internal {
         if (highestBidder != address(0)) {
-            IERC20(paymentToken).transfer(seller, highestBid);
+            if (paymentToken == address(0)) { // ETH
+                (bool sent, ) = seller.call{value: highestBid}("");
+                require(sent, "Failed to send ETH to seller");
+            } else { // ERC20
+                IERC20(paymentToken).transfer(seller, highestBid);
+            }
+
             if (assetType == AuctionFactory.AssetType.ERC721) {
                 IERC721(assetAddress).transferFrom(address(this), highestBidder, assetId);
             } else if (assetType == AuctionFactory.AssetType.ERC20) {
                 IERC20(assetAddress).transfer(highestBidder, amount);
-            } else if (assetType == AuctionFactory.AssetType.ERC1155) {
-                IERC1155(assetAddress).safeTransferFrom(address(this), highestBidder, assetId, amount, "");
             }
             emit AuctionEnded(highestBidder, highestBid);
         } else {
@@ -356,8 +377,6 @@ contract DutchAuction is IAuction, ReentrancyGuard, IERC1155Receiver {
                 IERC721(assetAddress).transferFrom(address(this), seller, assetId);
             } else if (assetType == AuctionFactory.AssetType.ERC20) {
                 IERC20(assetAddress).transfer(seller, amount);
-            } else if (assetType == AuctionFactory.AssetType.ERC1155) {
-                IERC1155(assetAddress).safeTransferFrom(address(this), seller, assetId, amount, "");
             }
             emit AuctionEnded(address(0), 0);
         }

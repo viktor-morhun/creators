@@ -42,6 +42,11 @@
 			},
 			{
 				"internalType": "uint256",
+				"name": "assetType",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
 				"name": "assetId",
 				"type": "uint256"
 			},
@@ -54,6 +59,11 @@
 				"internalType": "address",
 				"name": "paymentToken",
 				"type": "address"
+			},
+			{
+				"internalType": "uint8",
+				"name": "auctionType",
+				"type": "uint8"
 			}
 		],
 		"stateMutability": "view",
@@ -69,7 +79,7 @@
 		],
 		"name": "placeBid",
 		"outputs": [],
-		"stateMutability": "nonpayable",
+		"stateMutability": "payable",
 		"type": "function"
 	}
 ]
