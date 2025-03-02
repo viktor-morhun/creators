@@ -32,7 +32,7 @@ const Header: React.FC = () => {
             </Link>
             {account && (
               <Link to="/profile" className="text-sm text-gray-300 hover:text-white">
-                My Profile
+                My Auctions
               </Link>
             )}
           </nav>
