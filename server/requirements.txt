@@ -1,0 +1,6 @@
+fastapi==0.108.0
+uvicorn==0.25.0
+web3==6.10.0
+pydantic==2.5.2
+sqlalchemy==2.0.25
+python-dotenv==1.0.0
