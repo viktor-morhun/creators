@@ -187,32 +187,31 @@ contract EnglishAuction is IAuction, ReentrancyGuard, IERC1155Receiver {
     }
 
     function placeBid(uint256 bidAmount) external payable override nonReentrant {
-    require(!ended, "Auction already ended");
-    require(block.timestamp < endTime, "Auction time expired");
-    require(bidAmount >= reservePrice, "Bid below reserve price");
-    require(bidAmount > highestBid, "Bid must exceed current highest bid");
+        require(!ended, "Auction already ended");
+        require(block.timestamp < endTime, "Auction time expired");
+        require(bidAmount >= reservePrice, "Bid below reserve price");
+        require(bidAmount > highestBid, "Bid must exceed current highest bid");
 
-    if (paymentToken == address(0)) { // ETH
-        require(msg.value == bidAmount, "Sent ETH must equal bid amount");
-    } else { // ERC20
-        require(IERC20(paymentToken).allowance(msg.sender, address(this)) >= bidAmount, "Insufficient token allowance");
-        IERC20(paymentToken).transferFrom(msg.sender, address(this), bidAmount);
-    }
-
-    // Возвращаем предыдущую ставку
-    if (highestBidder != address(0)) {
         if (paymentToken == address(0)) { // ETH
-            (bool sent, ) = highestBidder.call{value: highestBid}("");
-            require(sent, "Failed to refund ETH to previous bidder");
+            require(msg.value == bidAmount, "Sent ETH must equal bid amount");
         } else { // ERC20
-            IERC20(paymentToken).transfer(highestBidder, highestBid);
+            require(IERC20(paymentToken).allowance(msg.sender, address(this)) >= bidAmount, "Insufficient token allowance");
+            IERC20(paymentToken).transferFrom(msg.sender, address(this), bidAmount);
         }
-    }
 
-    highestBidder = msg.sender;
-    highestBid = bidAmount;
-    emit BidPlaced(msg.sender, bidAmount);
-}
+        if (highestBidder != address(0)) {
+            if (paymentToken == address(0)) {
+                (bool sent, ) = highestBidder.call{value: highestBid}("");
+                require(sent, "Failed to refund ETH to previous bidder");
+            } else {
+                IERC20(paymentToken).transfer(highestBidder, highestBid);
+            }
+        }
+
+        highestBidder = msg.sender;
+        highestBid = bidAmount;
+        emit BidPlaced(msg.sender, bidAmount);
+    }
 
     function endAuction() external override nonReentrant {
         require(block.timestamp >= endTime || msg.sender == seller, "Auction not yet ended");
