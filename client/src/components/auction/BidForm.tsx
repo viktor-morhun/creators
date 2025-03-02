@@ -133,7 +133,7 @@ const BidForm: React.FC<BidFormProps> = ({
           <div>
             <p className="text-sm text-gray-400">Current bid</p>
             <p className="text-xl font-bold text-white">
-              {parseFloat(formattedCurrentBid).toFixed(4)} {currency}
+              {parseFloat(formattedCurrentBid).toFixed(4)} {`Tokens`}
             </p>
           </div>
           

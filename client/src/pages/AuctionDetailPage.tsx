@@ -407,7 +407,7 @@ const AuctionDetailPage: React.FC = () => {
                       <h3 className="text-sm text-gray-400 mb-1">
                         Token Standard
                       </h3>
-                      <p className="text-white">{`currentAuction ЗАМІНИТИ `}</p>
+                      <p className="text-white">{`current standard `}</p>
                     </div>
                     <div>
                       <h3 className="text-sm text-gray-400 mb-1">
