@@ -35,7 +35,7 @@ Key benefits include:
 Enhancing your project with the following features can significantly boost its capabilities and your chances in the hackathon:
 
 - **Trustless Payments & Escrow:** Secure funds in smart contracts until the auction is completed. 💰
-- **Decentralized Identity & Reputation:** Build trust through verified on-chain activity and reputation scores. 🏅
+- **Platform fees:** Our platform charges a small fee by the end of each auction. 🏅
 - **Interoperability:** Enjoy cross-chain asset auctions by supporting multi-chain environments. 🔄
 - **User-Friendly Interface:** Seamlessly integrate Web3 wallets for an optimal auction participation experience. 💻
 
