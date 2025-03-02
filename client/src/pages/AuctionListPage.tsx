@@ -379,21 +379,29 @@ const AuctionsListPage: React.FC = () => {
                   return details ? (
                     <AuctionCard
                       key={auction.auctionId}
+                      index={Math.random()}
                       auction={{
-                        id: auction.auctionId,
-                        auctionAddress: auction.auctionAddress,
                         seller: auction.seller,
-                        currentBid: details.highestBid,
+                        highestBidder: details.highestBidder || "0x0000000000000000000000000000000000000000",
+                        highestBid: details.highestBid,
                         endTime: details.endTime,
-                        auctionType: auction.auctionType,
-                        paymentToken: details.paymentToken,
+                        ended: details.ended || false,
                         assetAddress: details.assetAddress,
                         assetId: details.assetId,
                         amount: details.amount,
-                        ended: details.ended,
-                        bidCount: bidCounts.get(auction.auctionAddress) || 0,
-                        imageUrl: imageUrls.get(auction.auctionAddress) || "https://via.placeholder.com/300x200?text=Loading",
-                        currency: currencies.get(auction.auctionAddress) || "ETH",
+                        paymentToken: details.paymentToken || "0x0000000000000000000000000000000000000000",
+                        type: Number(auction.auctionType), // Convert to number for consistency
+                        // Include optional NFT metadata
+                        // nft: {
+                        //   name: `NFT #${details.assetId}`,
+                        //  // image: imageUrls.get(auction.auctionAddress)
+                        // },
+                        // Include optional ERC20 metadata
+                        // erc20: {
+                        //   symbol: currencies.get(auction.auctionAddress) || "ETH" 
+                        // },
+                        // Default to ERC721 if assetType is not specified
+                        assetType: 0 
                       }}
                     />
                   ) : null;
