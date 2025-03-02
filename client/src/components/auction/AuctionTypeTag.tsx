@@ -5,9 +5,21 @@ interface AuctionTypeTagProps {
   size?: 'small' | 'medium' | 'large';
 }
 
+type AuctionTypeConfig = {
+  label: string;
+  bgColor: string;
+  bgOpacity: string;
+  hoverColor: string;
+  icon: any;
+};
+
+type TypeConfig = {
+  [key: number]: AuctionTypeConfig;
+};
+
 const AuctionTypeTag: React.FC<AuctionTypeTagProps> = ({ type, size = 'medium' }) => {
   // Configuration for different auction types
-  const typeConfig = {
+  const typeConfig: TypeConfig = {
     0: { // English auction
       label: 'English',
       bgColor: 'bg-purple-500',
