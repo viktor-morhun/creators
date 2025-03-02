@@ -56,9 +56,11 @@ interface IAuction {
         uint256 endTime,
         bool ended,
         address assetAddress,
+        uint256 assetType,
         uint256 assetId,
         uint256 amount,
-        address paymentToken
+        address paymentToken,
+        uint8 auctionType
     );
 }
 
@@ -84,7 +86,7 @@ contract AuctionFactory is Ownable {
     ) external returns (address) {
         require(_assetAddress != address(0), "Invalid asset address");
         require(_duration > 0, "Duration must be greater than 0");
-        
+
         checkTransferAssetToContract(msg.sender, _assetAddress, _assetType, _assetId, _amount, address(this));
 
         auctionCount++;
@@ -213,15 +215,15 @@ contract EnglishAuction is IAuction, ReentrancyGuard, IERC1155Receiver {
     }
 
     function getAuctionDetails() external view override returns (
-        address, address, uint256, uint256, bool, address, uint256, uint256, address
+        address, address, uint256, uint256, bool, address, uint256, uint256, uint256, address, uint8
     ) {
         return (
             seller, highestBidder, highestBid, endTime, ended,
-            assetAddress, assetId, amount, paymentToken
+            assetAddress, uint256(assetType), assetId, amount, paymentToken, 1 // English auction type
         );
     }
 
-    function supportsInterface(bytes4 interfaceId) public pure override returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view override returns (bool) {
         return interfaceId == type(IERC1155Receiver).interfaceId || interfaceId == type(IERC165).interfaceId;
     }
 
@@ -328,13 +330,14 @@ contract DutchAuction is IAuction, ReentrancyGuard, IERC1155Receiver {
     }
 
     function getAuctionDetails() external view override returns (
-        address, address, uint256, uint256, bool, address, uint256, uint256, address
+        address, address, uint256, uint256, bool, address, uint256, uint256, uint256, address, uint8
     ) {
         return (
             seller, highestBidder, highestBid, endTime, ended,
-            assetAddress, assetId, amount, paymentToken
+            assetAddress, uint256(assetType), assetId, amount, paymentToken, 1 // 1 is added to differentiate between English and Dutch auction
         );
     }
+
 
     function supportsInterface(bytes4 interfaceId) public pure override returns (bool) {
         return interfaceId == type(IERC1155Receiver).interfaceId || interfaceId == type(IERC165).interfaceId;
