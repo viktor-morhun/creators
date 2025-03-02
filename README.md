@@ -35,8 +35,7 @@ Key benefits include:
 Enhancing your project with the following features can significantly boost its capabilities and your chances in the hackathon:
 
 - **Trustless Payments & Escrow:** Secure funds in smart contracts until the auction is completed. 💰
-- **Decentralized Identity & Reputation:** Build trust through verified on-chain activity and reputation scores. 🏅
-- **Interoperability:** Enjoy cross-chain asset auctions by supporting multi-chain environments. 🔄
+- **Platform fees:** Our platform charges a small fee by the end of each auction. 🏅
 - **User-Friendly Interface:** Seamlessly integrate Web3 wallets for an optimal auction participation experience. 💻
 
 ---
@@ -87,17 +86,17 @@ npm run dev
 4. Access the application:
    Open your browser and navigate to http://localhost:3000. 🌍
 
-Project Structure 🗂️
+## Project Structure 🗂️
 
 A brief overview of the project layout:
 
 - `client`: Contains the React frontend codebase.
 - `contract`: Contains the Solidity smart contract code.
 
-Contributing 🤝
+## Contributing 🤝
 
 Contributions are welcome! If you have suggestions or improvements, please open an issue or submit a pull request.
 
-License 📄
+## License 📄
 
 This project is licensed under the MIT License. See the LICENSE file for details.
