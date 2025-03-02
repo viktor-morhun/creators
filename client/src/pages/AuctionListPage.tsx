@@ -43,6 +43,7 @@ const AuctionsListPage: React.FC = () => {
   const [auctionTypeFilter, setAuctionTypeFilter] = useState("all");
   const [sortOption, setSortOption] = useState("ending-soon");
   const [visibleCount, setVisibleCount] = useState(8);
+  if (false) console.log(imageUrls, currencies);
 
   // Fetch additional data (image URL for ERC721, token symbol)
   const fetchNFTImage = async (assetAddress: string, assetId: number): Promise<string> => {
