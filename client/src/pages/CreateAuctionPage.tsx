@@ -365,6 +365,19 @@ const AuctionCreatePage: React.FC = () => {
                           required
                         />
                       </div>
+                      <div>
+                        <label className="block text-gray-300 text-sm font-medium mb-2">
+                          Bid Asset Address
+                        </label>
+                        <input
+                          type="text"
+                          value={bidAssetAddress}
+                          onChange={(e) => setBidAssetAddress(e.target.value)}
+                          placeholder="0x..."
+                          className="w-full bg-gray-700 border border-gray-600 rounded-lg py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          required
+                        />
+                      </div>
                     </>
                   )}
 
