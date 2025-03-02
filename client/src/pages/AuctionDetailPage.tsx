@@ -1,50 +1,15 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { useAppDispatch, useAppSelector } from "../hooks/redux";
-import { fetchAuctionById } from "../store/slices/auctionsSlice";
+import { useAppSelector } from "../hooks/redux";
 import { getWeb3 } from "../store/slices/web3Slice";
 import AuctionTypeTag from "../components/auction/AuctionTypeTag";
 import CountdownTimer from "../components/auction/CountdownTimer";
 import BidForm from "../components/auction/BidForm";
 import BidHistory from "../components/auction/BidHistory";
 import Web3 from "web3";
-
-// Mock bid data for development
-const mockBids = [
-  {
-    id: "bid1",
-    bidder: {
-      address: "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
-      name: "Crypto_Collector",
-    },
-    amount: Web3.utils.toWei("0.75", "ether"),
-    timestamp: Date.now() - 3600000, // 1 hour ago
-    txHash:
-      "0x123456789abcdef123456789abcdef123456789abcdef123456789abcdef1234",
-  },
-  {
-    id: "bid2",
-    bidder: {
-      address: "0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2",
-    },
-    amount: Web3.utils.toWei("0.7", "ether"),
-    timestamp: Date.now() - 7200000, // 2 hours ago
-    txHash:
-      "0xabcdef123456789abcdef123456789abcdef123456789abcdef123456789abcd",
-  },
-  {
-    id: "bid3",
-    bidder: {
-      address: "0x5B38Da6a701c568545dCfcB03FcB875f56beddC4",
-      name: "DigitalArtFan",
-    },
-    amount: Web3.utils.toWei("0.65", "ether"),
-    timestamp: Date.now() - 14400000, // 4 hours ago
-    txHash:
-      "0x9876543210abcdef9876543210abcdef9876543210abcdef9876543210abcdef",
-  },
-];
+import { getAuctionDetails, getAuctionBids, BidPlacedEvent, AuctionDetails } from "../controllers/getEvents";
+import { config } from "../config";
 
 // Define the ABI interface type
 interface AbiItem {
@@ -57,114 +22,107 @@ interface AbiItem {
 
 const AUCTION_ABI: AbiItem[] = [
   // Place your smart contract ABI here
-  // Example: { "inputs": [], "name": "placeBid", "outputs": [], "stateMutability": "payable", "type": "function" }
 ];
 
 const AuctionDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
 
-  //fetch auction data here
-  const { currentAuction, loading, error } = useAppSelector(
-    (state) => state.auctions
-  );
-  const { isConnected, address } = useAppSelector(
-    (state) => state.web3
-  );
+  // Get web3 connection status from Redux
+  const { isConnected, address } = useAppSelector((state) => state.web3);
 
-  const [contractInstance, setContractInstance] = useState<any>(null);
-  const [bids, setBids] = useState(mockBids); // In a real app, this would be fetched from the blockchain
+  // State for auction data
+  const [auction, setAuction] = useState<AuctionDetails | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [bids, setBids] = useState<BidPlacedEvent[]>([]);
   const [loadingBids, setLoadingBids] = useState(false);
+  const [contractInstance, setContractInstance] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("details");
   const [shareTooltip, setShareTooltip] = useState(false);
 
+  // Fetch auction details from API
   useEffect(() => {
-    if (id) {
-      dispatch(fetchAuctionById(Number(id)));
-    }
-  }, [dispatch, id]);
+    const fetchAuctionData = async () => {
+      if (!id) return;
+      
+      try {
+        setLoading(true);
+        console.log(`Fetching auction details for ID: ${id} from ${config.apiUrl}/auctions/${id}`);
+        
+        const auctionData = await getAuctionDetails(id);
+        console.log("Auction data received:", auctionData);
+        
+        if (!auctionData || Object.keys(auctionData).length === 0) {
+          throw new Error("Empty auction data received");
+        }
+        
+        setAuction(auctionData);
+        
+        // Also fetch initial bids
+        const bidData = await getAuctionBids(id);
+        console.log(`Received ${bidData.length} bids`);
+        setBids(bidData);
+        
+      } catch (err: any) {
+        console.error("Error fetching auction:", err);
+        setError(err.message || "Failed to load auction details");
+        toast.error(`Failed to load auction: ${err.message}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAuctionData();
+  }, [id]);
 
   // Initialize contract when auction data is available
   useEffect(() => {
     const initializeContract = async () => {
-      if (currentAuction && isConnected) {
-        try {
-          const web3 = getWeb3();
-          if (!web3) return;
+      if (!auction || !isConnected) return;
+      
+      try {
+        const web3 = getWeb3();
+        if (!web3) return;
 
-          // In production, you would get this address from your auction data
-          const mockContractAddress =
-            "0x1234567890123456789012345678901234567890";
+        // Create contract instance using the auction address
+        const auctionContract = new web3.eth.Contract(
+          AUCTION_ABI as any,
+          auction.assetAddress // Using the auction contract address
+        );
 
-          // Create contract instance
-          const auctionContract = new web3.eth.Contract(
-            AUCTION_ABI as any,
-            mockContractAddress
-          );
-
-          setContractInstance(auctionContract);
-        } catch (error) {
-          console.error("Failed to initialize contract:", error);
-        }
+        setContractInstance(auctionContract);
+      } catch (error) {
+        console.error("Failed to initialize contract:", error);
       }
     };
 
     initializeContract();
-  }, [currentAuction, isConnected]);
-
-  // // Check if user is on the correct chain
-  // useEffect(() => {
-  //   if (isConnected && currentAuction && chainId !== currentAuction.chainId) {
-  //     toast.warning(
-  //       `This auction is on a different network. Please switch to ${getNetworkName(
-  //         currentAuction.chainId
-  //       )}.`
-  //     );
-  //   }
-  // }, [isConnected, currentAuction, chainId]);
+  }, [auction, isConnected]);
 
   // Auto-hide share tooltip after showing
   useEffect(() => {
     if (shareTooltip) {
-      const timer = setTimeout(() => {
-        setShareTooltip(false);
-      }, 3000);
+      const timer = setTimeout(() => setShareTooltip(false), 3000);
       return () => clearTimeout(timer);
     }
   }, [shareTooltip]);
-
-  // // Helper function to get network name from chain ID
-  // const getNetworkName = (id: number) => {
-  //   switch (id) {
-  //     case 1:
-  //       return "Ethereum Mainnet";
-  //     case 137:
-  //       return "Polygon";
-  //     case 42161:
-  //       return "Arbitrum";
-  //     default:
-  //       return `Network ID ${id}`;
-  //   }
-  // };
 
   // Handle share auction
   const handleShareAuction = () => {
     const url = window.location.href;
 
-    // Try to use the Web Share API if available
     if (navigator.share) {
-      navigator
-        .share({
-          title: "Auction Details",
-          text: `Check out this auction: Lot#${currentAuction?.assetId}`,
-          url: url,
-        })
-        .then(() => console.log("Shared successfully"))
-        .catch((error) => {
-          console.error("Error sharing:", error);
-          fallbackShare(url);
-        });
+      navigator.share({
+        title: "Auction Details",
+        text: `Check out this auction: ${auction?.title || `Lot#${auction?.assetId}`}`,
+        url: url,
+      })
+      .then(() => console.log("Shared successfully"))
+      .catch((error) => {
+        console.error("Error sharing:", error);
+        fallbackShare(url);
+      });
     } else {
       fallbackShare(url);
     }
@@ -184,15 +142,19 @@ const AuctionDetailPage: React.FC = () => {
       });
   };
 
-  // Mock function to fetch bids - in a real app, this would query the blockchain
+  // Fetch bids from API
   const fetchBids = async () => {
+    if (!id) return;
+    
     setLoadingBids(true);
     try {
-      // In a real app, you would call your contract or API here
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      console.log(`Fetching bids for auction ${id}`);
+      const bidData = await getAuctionBids(id);
+      console.log(`Received ${bidData.length} bids from API`);
+      setBids(bidData);
     } catch (error: any) {
+      console.error("Error fetching bids:", error);
       toast.error("Failed to load bid history");
-      console.error(error);
     } finally {
       setLoadingBids(false);
     }
@@ -205,7 +167,7 @@ const AuctionDetailPage: React.FC = () => {
       return Promise.reject(new Error("Wallet not connected"));
     }
 
-    if (!currentAuction) {
+    if (!auction) {
       return Promise.reject(new Error("Auction data not available"));
     }
 
@@ -222,26 +184,21 @@ const AuctionDetailPage: React.FC = () => {
       // For development, simulate a delay
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      console.log(
-        `Placed bid of ${bidAmount} ETH (${bidAmountWei} Wei) on auction ${id}`
-      );
+      console.log(`Placed bid of ${bidAmount} ETH (${bidAmountWei} Wei) on auction ${id}`);
 
       // Add the new bid to the local state
-      const newBid = {
-        id: `bid-${Date.now()}`,
-        bidder: {
-          address: address,
-          name: "You",
-        },
+      const newBid: BidPlacedEvent = {
+        bidder: address,
         amount: bidAmountWei,
+        blockNumber: 0,
         timestamp: Date.now(),
-        txHash: `0x${Math.random().toString(16).substr(2, 64)}`,
       };
 
       setBids([newBid, ...bids]);
 
       // Refresh auction data after successful bid
-      dispatch(fetchAuctionById(Number(id!)));
+      const updatedAuction = await getAuctionDetails(id!);
+      setAuction(updatedAuction);
 
       // Show success message
       toast.success("Bid placed successfully!");
@@ -303,7 +260,7 @@ const AuctionDetailPage: React.FC = () => {
     );
   }
 
-  if (!currentAuction) {
+  if (!auction) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="bg-yellow-500 bg-opacity-20 border border-yellow-600 text-yellow-200 rounded-lg p-4 mb-6">
@@ -336,38 +293,43 @@ const AuctionDetailPage: React.FC = () => {
           <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 mb-6">
             {/* Image Container */}
             <div className="relative">
-              <div className="w-full h-[400px] bg-gradient-to-br from-purple-900 via-gray-800 to-black flex items-center justify-center"></div>
+              {auction.imageUrl ? (
+                <img 
+                  src={auction.imageUrl} 
+                  alt={auction.title || `NFT #${auction.assetId}`} 
+                  className="w-full h-[400px] object-contain bg-gradient-to-br from-purple-900 via-gray-800 to-black"
+                />
+              ) : (
+                <div className="w-full h-[400px] bg-gradient-to-br from-purple-900 via-gray-800 to-black flex items-center justify-center">
+                  <span className="text-gray-400">No image available</span>
+                </div>
+              )}
               <div className="absolute top-4 left-4 flex space-x-2">
-                <AuctionTypeTag type={currentAuction.type} />
+                <AuctionTypeTag type={auction.type} />
                 <div className="bg-gray-900 bg-opacity-70 text-white text-xs px-2 py-1 rounded-lg">
-                  {currentAuction.paymentToken}
+                  {auction.currencySymbol || 'ETH'}
                 </div>
               </div>
               <div className="absolute bottom-4 right-4">
-                <CountdownTimer endTime={currentAuction.endTime} />
+                <CountdownTimer endTime={auction.endTime} />
               </div>
             </div>
 
             {/* Content */}
             <div className="p-6">
               <h1 className="text-2xl font-bold text-white mb-2">
-                LOT#{currentAuction.assetId}
+                {auction.title || `LOT#${auction.assetId}`}
               </h1>
 
               <div className="flex items-center mb-4">
                 <div className="mr-2 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-xs">
-                  {currentAuction.seller
-                    ? currentAuction.seller.charAt(0)
-                    : "S"}
+                  {auction.seller ? auction.seller.charAt(0) : "S"}
                 </div>
                 <div>
                   <p className="text-sm text-gray-400">Created by</p>
                   <p className="text-sm font-medium text-white">
-                    {`${currentAuction.seller.substring(
-                      0,
-                      6
-                    )}...${currentAuction.seller.substring(
-                      currentAuction.seller.length - 4
+                    {`${auction.seller.substring(0, 6)}...${auction.seller.substring(
+                      auction.seller.length - 4
                     )}`}
                   </p>
                 </div>
@@ -392,9 +354,14 @@ const AuctionDetailPage: React.FC = () => {
                         ? "text-purple-400 border-b-2 border-purple-400"
                         : "text-gray-400 hover:text-gray-300"
                     }`}
-                    onClick={() => setActiveTab("bids")}
+                    onClick={() => {
+                      setActiveTab("bids");
+                      if (bids.length === 0) {
+                        fetchBids();
+                      }
+                    }}
                   >
-                    Bids ({bids.length})
+                    Bids ({auction.bidCount || bids.length})
                   </button>
                 </div>
               </div>
@@ -407,14 +374,16 @@ const AuctionDetailPage: React.FC = () => {
                       <h3 className="text-sm text-gray-400 mb-1">
                         Token Standard
                       </h3>
-                      <p className="text-white">{`currentAuction ЗАМІНИТИ `}</p>
+                      <p className="text-white">
+                        {auction.amount === "0" ? "ERC-721 (NFT)" : "ERC-20 (Token)"}
+                      </p>
                     </div>
                     <div>
                       <h3 className="text-sm text-gray-400 mb-1">
                         Auction Type
                       </h3>
                       <p className="text-white capitalize">
-                        {currentAuction.type ? "Dutch" : "English"}
+                        {auction.type === 1 ? "Dutch" : "English"}
                       </p>
                     </div>
                     <div>
@@ -422,9 +391,19 @@ const AuctionDetailPage: React.FC = () => {
                         Creator Address
                       </h3>
                       <p className="text-white font-mono text-sm">
-                        {currentAuction.seller}
+                        {auction.seller}
                       </p>
                     </div>
+                    {auction.description && (
+                      <div className="md:col-span-2">
+                        <h3 className="text-sm text-gray-400 mb-1">
+                          Description
+                        </h3>
+                        <p className="text-white">
+                          {auction.description}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="relative">
@@ -458,8 +437,8 @@ const AuctionDetailPage: React.FC = () => {
                 </div>
               ) : (
                 <BidHistory
-                  auctionId={`${currentAuction.assetId}`}
-                  currency={currentAuction.paymentToken}
+                  auctionId={`${auction.assetId}`}
+                  currency={auction.currencySymbol || 'ETH'}
                   bids={bids}
                   isLoading={loadingBids}
                   fetchBids={fetchBids}
@@ -472,11 +451,11 @@ const AuctionDetailPage: React.FC = () => {
         {/* Sidebar - Bid area */}
         <div className="lg:col-span-1">
           <BidForm
-            auctionId={`${currentAuction.assetId}`}
-            currentBid={currentAuction.highestBid}
+            auctionId={`${auction.assetId}`}
+            currentBid={auction.highestBid}
             minBidIncrement={10}
-            currency={currentAuction.paymentToken}
-            endTime={currentAuction.endTime}
+            currency={auction.currencySymbol || 'ETH'}
+            endTime={auction.endTime}
             onBidSubmit={handlePlaceBid}
           />
 
@@ -487,12 +466,13 @@ const AuctionDetailPage: React.FC = () => {
             </h3>
             <div className="flex items-center">
               <div className="w-12 h-12 rounded-full bg-purple-600 flex items-center justify-center text-white font-bold text-xl mr-4">
-                {currentAuction.seller ? currentAuction.seller.charAt(0) : "S"}
+                {auction.seller ? auction.seller.charAt(0) : "S"}
               </div>
               <div>
                 <h4 className="font-medium text-base w-[280px] block truncate text-white">
-                  {currentAuction.seller ||
-                  `${currentAuction.seller.substring(0, 6)}...`}
+                  {`${auction.seller.substring(0, 6)}...${auction.seller.substring(
+                    auction.seller.length - 4
+                  )}`}
                 </h4>
                 <p className="text-sm text-gray-400">Creator</p>
               </div>

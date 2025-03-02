@@ -10,11 +10,12 @@ interface Config {
   rpcUrl: string;
   contractAddress: string;
   contractAbi: any;
-    erc20Abi: any;
-    erc721Abi: any;
-    englishAuctionAbi: any;
-    dutchAuctionAbi: any;
-    IAuctionAbi: any;
+  erc20Abi: any;
+  erc721Abi: any;
+  englishAuctionAbi: any;
+  dutchAuctionAbi: any;
+  IAuctionAbi: any;
+  apiUrl: string; // Added API URL
 }
 
 export const config: Config = {
@@ -26,6 +27,7 @@ export const config: Config = {
   englishAuctionAbi: english_auction_abi,
   dutchAuctionAbi: dutch_auction_abi,
   IAuctionAbi: IAuctionAbi,
+  apiUrl: 'https://cleanly-engaging-pegasus.ngrok-free.app', // Server API URL
 };
 
 

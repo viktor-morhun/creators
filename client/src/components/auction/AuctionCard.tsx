@@ -8,7 +8,7 @@ import { AuctionDetails } from '../../controllers/getEvents';
 
 interface AuctionCardProps {
   auction: AuctionDetails;
-  index: number; // For generating fallback IDs if needed
+  index: string; // For generating fallback IDs if needed
 }
 
 const AuctionCard: React.FC<AuctionCardProps> = ({ auction, index }) => {
@@ -26,7 +26,7 @@ const AuctionCard: React.FC<AuctionCardProps> = ({ auction, index }) => {
   } = auction;
 
   // Generate a unique ID if one isn't provided
-  const auctionId = assetId || `auction-${index}-${assetId}`;
+  const auctionId = index;
   
   // Safe formatting functions with error handling
   const formatWei = (weiAmount: string): string => {
@@ -58,6 +58,7 @@ const AuctionCard: React.FC<AuctionCardProps> = ({ auction, index }) => {
   
   // Determine auction type text
   const auctionTypeText = type === 0 ? 'English' : 'Dutch';
+  console.log("actually type is", type)
   
   // Check if auction has bids (English auction)
   const hasBids = type === 0 && highestBidder !== '0x0000000000000000000000000000000000000000';
@@ -109,7 +110,8 @@ const AuctionCard: React.FC<AuctionCardProps> = ({ auction, index }) => {
         {/* Content */}
         <div className="p-4">
           <h3 className="text-lg font-bold text-white mb-1 line-clamp-1">
-            LOT #{assetId || '?'}
+            {/* LOT #{assetId || '?'} */}
+            {auction.title}
           </h3>
           
           <p className="text-xs text-gray-400 mb-3">

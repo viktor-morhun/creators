@@ -1,14 +1,16 @@
 import { ethers } from 'ethers';
 import { config } from '../config.ts';
-import {getNFTMetadata, NFTMetadata, getERC20Metadata, ERC20Metadata} from "./getToken.ts";
 
-
-// Define the Infura provider
+// Define the provider (still needed for some operations like approval checking)
 const provider = new ethers.JsonRpcProvider(config.rpcUrl);
 
-// Event signatures for filtering
-const AUCTION_CREATED_TOPIC = ethers.id('AuctionCreated(uint256,address,uint8,address)');
-const BID_PLACED_TOPIC = ethers.id('BidPlaced(address,uint256)');
+// API server URL
+const API_URL = config.apiUrl;
+const apiHeaders = {
+  'ngrok-skip-browser-warning': 'true'
+};
+
+// Enums and static values
 enum AssetType {
   ERC20 = 0,
   ERC721 = 1,
@@ -21,6 +23,15 @@ export interface AuctionCreatedEvent {
   auctionType: number; // 0 for English, 1 for Dutch
   seller: string;
   blockNumber: number;
+  status?: 'active' | 'ended';
+  imageUrl?: string;
+  title?: string;
+  description?: string;
+  currencySymbol?: string;
+  currencyImageUrl?: string;
+  highestBid?: string;
+  highestBidder?: string;
+  endTime?: number;
 }
 
 // Interface for BidPlaced event
@@ -28,6 +39,7 @@ export interface BidPlacedEvent {
   bidder: string;
   amount: string; // In wei
   blockNumber: number;
+  timestamp?: number;
 }
 
 // Interface for Auction Details from getAuctionDetails
@@ -38,23 +50,218 @@ export interface AuctionDetails {
   endTime: number; // Unix timestamp
   ended: boolean;
   assetAddress: string;
-  assetType: AssetType;
   assetId: number;
   amount: string; // In wei
   paymentToken: string;
   type: number; // 0 for English, 1 for Dutch
-  nft?: NFTMetadata; // Optional NFT metadata
-  erc20?: ERC20Metadata; // Optional ERC20 metadata
+  status?: 'active' | 'ended';
+  imageUrl?: string;
+  title?: string;
+  description?: string;
+  currencySymbol?: string;
+  currencyName?: string;
+  currencyImageUrl?: string;
+  currencyDecimals?: number;
+  bidCount?: number;
+  reservePrice?: string; // For Dutch auctions
+  currentPrice?: string; // For Dutch auctions
 }
 
+/**
+ * Get auctions from the server API
+ * @param pageSize Number of auctions per page
+ * @param pageNumber Page number (0-indexed)
+ * @param status Optional filter by status ('active' or 'ended')
+ * @returns Promise<AuctionCreatedEvent[]>
+ */
+async function getAuctions(
+  pageSize: number = 10,
+  pageNumber: number = 0,
+  status?: 'active' | 'ended'
+): Promise<AuctionCreatedEvent[]> {
+  try {
+    let url = `${API_URL}/auctions?page=${pageNumber}&page_size=${pageSize}`;
+    
+    if (status) {
+      url += `&status=${status}`;
+    }
+    
+    const response = await fetch(url, { headers: apiHeaders });
+    
+    if (!response.ok) {
+      throw new Error(`Server returned status: ${response.status}`);
+    }
+    
+    const auctions = await response.json();
+    return auctions.map((auction: any) => ({
+      auctionId: auction.auctionId,
+      auctionAddress: auction.auctionAddress,
+      auctionType: auction.auctionType,
+      seller: auction.seller,
+      blockNumber: auction.blockNumber || 0,
+      status: auction.status,
+      imageUrl: auction.imageUrl,
+      title: auction.title,
+      description: auction.description,
+      currencySymbol: auction.currencySymbol,
+      currencyImageUrl: auction.currencyImageUrl
+    }));
+  } catch (error) {
+    console.error('Error fetching auctions:', error);
+    return [];
+  }
+}
 
+/**
+ * Get auctions count from the server
+ */
+async function getAuctionsCount(): Promise<{ total: number, active: number, ended: number }> {
+  try {
+    const response = await fetch(`${API_URL}/auctions/count`, { headers: apiHeaders });
+    
+    if (!response.ok) {
+      throw new Error(`Server returned status: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching auction counts:', error);
+    return { total: 0, active: 0, ended: 0 };
+  }
+}
+
+/**
+ * Get auctions from a specific seller
+ */
+async function getUserAuctions(
+  sellerAddress: string,
+  pageSize: number = 10,
+  pageNumber: number = 0
+): Promise<AuctionCreatedEvent[]> {
+  try {
+    const response = await fetch(
+      `${API_URL}/auctions?seller=${sellerAddress}&page=${pageNumber}&page_size=${pageSize}`,
+      { headers: apiHeaders }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`Server returned status: ${response.status}`);
+    }
+    
+    const auctions = await response.json();
+    return auctions.map((auction: any) => ({
+      auctionId: auction.auctionId,
+      auctionAddress: auction.auctionAddress,
+      auctionType: auction.auctionType,
+      seller: auction.seller,
+      blockNumber: auction.blockNumber || 0,
+      status: auction.status,
+      imageUrl: auction.imageUrl,
+      title: auction.title,
+      description: auction.description,
+      currencySymbol: auction.currencySymbol,
+      currencyImageUrl: auction.currencyImageUrl
+    }));
+  } catch (error) {
+    console.error('Error fetching user auctions:', error);
+    return [];
+  }
+}
+
+/**
+ * Get bids for a specific auction
+ */
+async function getAuctionBids(
+  auctionId: string,
+  pageSize: number = 10,
+  pageNumber: number = 0
+): Promise<BidPlacedEvent[]> {
+  try {
+    const response = await fetch(
+      `${API_URL}/auctions/${auctionId}/bids?page=${pageNumber}&page_size=${pageSize}`,
+      { headers: apiHeaders }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`Server returned status: ${response.status}`);
+    }
+    
+    const bids = await response.json();
+    return bids.map((bid: any) => ({
+      bidder: bid.bidder,
+      amount: bid.amount,
+      blockNumber: bid.blockNumber,
+      timestamp: bid.timestamp
+    }));
+  } catch (error) {
+    console.error('Error fetching auction bids:', error);
+    return [];
+  }
+}
+
+/**
+ * Get details about a specific auction
+ */
+async function getAuctionDetails(auctionId: string): Promise<AuctionDetails> {
+  try {
+    const response = await fetch(`${API_URL}/auctions/${auctionId}`, { headers: apiHeaders });
+    
+    if (!response.ok) {
+      throw new Error(`Server returned status: ${response.status}`);
+    }
+    
+    const auction = await response.json();
+    
+    return {
+      seller: auction.seller,
+      highestBidder: auction.highestBidder,
+      highestBid: auction.highestBid,
+      endTime: auction.endTime,
+      ended: auction.ended,
+      assetAddress: auction.assetAddress,
+      assetId: auction.assetId,
+      amount: auction.amount,
+      paymentToken: auction.paymentToken,
+      type: auction.auctionType,
+      status: auction.status,
+      imageUrl: auction.imageUrl,
+      title: auction.title,
+      description: auction.description,
+      currencySymbol: auction.currencySymbol,
+      currencyName: auction.currencyName,
+      currencyImageUrl: auction.currencyImageUrl,
+      currencyDecimals: auction.currencyDecimals,
+      bidCount: auction.bidCount,
+      // Dutch auction specific fields
+      reservePrice: auction.reservePrice,
+      currentPrice: auction.currentPrice
+    };
+  } catch (error) {
+    console.error('Error fetching auction details:', error);
+    // Default return to avoid breaking the UI
+    return {
+      seller: '',
+      highestBidder: '',
+      highestBid: '0',
+      endTime: 0,
+      ended: false,
+      assetAddress: '',
+      assetId: 0,
+      amount: '0',
+      paymentToken: '',
+      type: 0
+    };
+  }
+}
+
+// Keep the checkApproval function as is since it still needs direct blockchain access
 async function checkApproval(
   assetType: AssetType,
   assetAddress: string,
   owner: string,
   target: string,
-  assetId?: number, // Optional, required for ERC721 and
-  amount?: string // Optional, required for ERC20 and in wei
+  assetId?: number,
+  amount?: string
 ): Promise<boolean> {
   try {
     if (assetType === AssetType.ERC20) {
@@ -76,160 +283,29 @@ async function checkApproval(
   }
 }
 
-
-async function getAuctions(
-    pageSize: number = 10,
-    pageNumber: number = 0,
-    fromBlock: number = 0,
-    toBlock: number | 'latest' = 'latest'
-    ): Promise<AuctionCreatedEvent[]> {
-    // Filter for AuctionCreated events
-    const filter = {
-        address: config.contractAddress,
-        topics: [AUCTION_CREATED_TOPIC],
-        fromBlock,
-        toBlock,
-    };
-
-    // Fetch logs from Infura
-    const logs = await provider.getLogs(filter);
-
-    // Parse logs into AuctionCreatedEvent objects
-    const auctions: AuctionCreatedEvent[] = logs.map((log) => {
-        const decoded = ethers.AbiCoder.defaultAbiCoder().decode(
-        ['uint256', 'address', 'uint8', 'address'],
-        log.data
-        );
-        return {
-        auctionId: decoded[0].toString(),
-        auctionAddress: decoded[1],
-        auctionType: decoded[2],
-        seller: decoded[3],
-        blockNumber: log.blockNumber,
-        };
-    });
-
-    // Sort by block number (newest first)
-    auctions.sort((a, b) => b.blockNumber - a.blockNumber);
-
-    // Apply pagination
-    const startIndex = pageNumber * pageSize;
-    const endIndex = startIndex + pageSize;
-    return auctions.slice(startIndex, endIndex);
-    }
-
-async function getUserAuctions(
-  sellerAddress: string,
+// Add a function to get active auctions
+async function getActiveAuctions(
   pageSize: number = 10,
-  pageNumber: number = 0,
-  fromBlock: number = 0,
-  toBlock: number | 'latest' = 'latest'
+  pageNumber: number = 0
 ): Promise<AuctionCreatedEvent[]> {
-  // Filter for AuctionCreated events with seller address as the 4th topic
-  const filter = {
-    address: config.contractAddress,
-    topics: [
-      AUCTION_CREATED_TOPIC,
-      null, // auctionId (not filtered)
-      null, // auctionAddress (not filtered)
-      ethers.zeroPadValue(sellerAddress, 32), // Filter by seller
-    ],
-    fromBlock,
-    toBlock,
-  };
-
-  // Fetch logs from rpc
-  const logs = await provider.getLogs(filter);
-
-  // Parse logs into AuctionCreatedEvent objects
-  const auctions: AuctionCreatedEvent[] = logs.map((log) => {
-    const decoded = ethers.AbiCoder.defaultAbiCoder().decode(
-      ['uint256', 'address', 'uint8', 'address'],
-      log.data
-    );
-    return {
-      auctionId: decoded[0].toString(),
-      auctionAddress: decoded[1],
-      auctionType: decoded[2],
-      seller: decoded[3],
-      blockNumber: log.blockNumber,
-    };
-  });
-
-  // Sort by block number (newest first)
-  auctions.sort((a, b) => b.blockNumber - a.blockNumber);
-
-  // Apply pagination
-  const startIndex = pageNumber * pageSize;
-  const endIndex = startIndex + pageSize;
-  return auctions.slice(startIndex, endIndex);
+  return getAuctions(pageSize, pageNumber, 'active');
 }
 
-async function getAuctionBids(
-  auctionAddress: string,
+// Add a function to get ended auctions
+async function getEndedAuctions(
   pageSize: number = 10,
-  pageNumber: number = 0,
-  fromBlock: number = 0,
-  toBlock: number | 'latest' = 'latest'
-): Promise<BidPlacedEvent[]> {
-  // Filter for BidPlaced events from the auction contract
-  const filter = {
-    address: auctionAddress,
-    topics: [BID_PLACED_TOPIC],
-    fromBlock,
-    toBlock,
-  };
-
-  // Fetch logs from Infura
-  const logs = await provider.getLogs(filter);
-
-  // Parse logs into BidPlacedEvent objects
-  const bids: BidPlacedEvent[] = logs.map((log) => {
-    const decoded = ethers.AbiCoder.defaultAbiCoder().decode(['address', 'uint256'], log.data);
-    return {
-      bidder: decoded[0],
-      amount: decoded[1].toString(),
-      blockNumber: log.blockNumber,
-    };
-  });
-
-  // Sort by block number (newest first)
-  bids.sort((a, b) => b.blockNumber - a.blockNumber);
-
-  // Apply pagination
-  const startIndex = pageNumber * pageSize;
-  const endIndex = startIndex + pageSize;
-  return bids.slice(startIndex, endIndex);
-}
-
-async function getAuctionDetails(auctionAddress: string): Promise<AuctionDetails> {
-  const auctionContract = new ethers.Contract(auctionAddress, config.IAuctionAbi, provider);
-  const details = await auctionContract.getAuctionDetails();
-  const result: AuctionDetails = {
-    seller: details[0],
-    highestBidder: details[1],
-    highestBid: details[2].toString(),
-    endTime: Number(details[3]),
-    ended: details[4],
-    assetAddress: details[5],
-    assetType: Number(details[6]),  // 0 for ERC20, 1 for ERC721
-    assetId: Number(details[7]),
-    amount: details[8].toString(),
-    paymentToken: details[9],
-    type: details[10],
-  };
-  if (result.assetType === 1) { // ERC721 или ERC1155
-    result.nft = await getNFTMetadata(result.assetAddress, result.assetId);
-  } else {
-    result.erc20 = await getERC20Metadata(result.assetAddress);
-  }
-    return result;
+  pageNumber: number = 0
+): Promise<AuctionCreatedEvent[]> {
+  return getAuctions(pageSize, pageNumber, 'ended');
 }
 
 export {
   checkApproval,
+  getAuctions,
+  getActiveAuctions,
+  getEndedAuctions,
   getUserAuctions,
   getAuctionBids,
   getAuctionDetails,
-  getAuctions,
+  getAuctionsCount,
 };
