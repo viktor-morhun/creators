@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
-import useWeb3 from './useWeb3';
-import Web3 from 'web3';
-import { AuctionDetails } from '../components/auction/AuctionCard';
-import MOCK_AUCTIONS from '../store/mockData/auctions';
-
+import { useState, useEffect, useCallback } from "react";
+import useWeb3 from "./useWeb3";
+//import Web3 from "web3";
+import MOCK_AUCTIONS from "../store/mockData/auctions";
+import { AuctionDetails } from "../controllers/getEvents";
 // Hook return type with updated AuctionDetails type
 interface UseAuctionsReturn {
   allAuctions: AuctionDetails[];
@@ -27,9 +26,9 @@ interface AuctionFilters {
   type?: number; // Updated to match the actual type (0 for English, 1 for Dutch)
   minPrice?: string; // Changed to string to match wei format
   maxPrice?: string;
-  status?: 'active' | 'ended';
+  status?: "active" | "ended";
 }
-
+/*
 // Helper to convert ETH to Wei
 const toWei = (eth: number): string => {
   return Web3.utils.toWei(eth.toString(), 'ether');
@@ -39,7 +38,7 @@ const toWei = (eth: number): string => {
 const now = Date.now();
 const DAY = 86400000;
 const HOUR = 3600000;
-
+*/
 
 // The hook
 export const useAuctions = (): UseAuctionsReturn => {
@@ -56,98 +55,108 @@ export const useAuctions = (): UseAuctionsReturn => {
     try {
       // In a production environment, this would be an API or blockchain call
       // For now, we're using mock data with a simulated delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       setAllAuctions(MOCK_AUCTIONS);
     } catch (err) {
-      console.error('Error fetching auctions:', err);
-      setError('Failed to load auctions. Please try again.');
+      console.error("Error fetching auctions:", err);
+      setError("Failed to load auctions. Please try again.");
     } finally {
       setLoading(false);
     }
   }, []);
 
   // Fetch a single auction by ID
-  const fetchAuction = useCallback(async (id: string): Promise<AuctionDetails | null> => {
-    try {
-      // In production, this would be an API or blockchain call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const auction = MOCK_AUCTIONS.find(auction => auction.id === id);
-      return auction || null;
-    } catch (err) {
-      console.error(`Error fetching auction ${id}:`, err);
-      setError('Failed to load auction details.');
-      return null;
-    }
-  }, []);
+  const fetchAuction = useCallback(
+    async (id: string): Promise<AuctionDetails | null> => {
+      try {
+        // In production, this would be an API or blockchain call
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        const auction = MOCK_AUCTIONS.find((auction) => auction.id === id);
+        return auction || null;
+      } catch (err) {
+        console.error(`Error fetching auction ${id}:`, err);
+        setError("Failed to load auction details.");
+        return null;
+      }
+    },
+    []
+  );
 
   // Refresh a single auction
   const refreshAuction = useCallback(async (id: string): Promise<void> => {
     try {
       // In production, this would refresh from the blockchain
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
       // For mock purposes, we're not actually changing anything
     } catch (err) {
       console.error(`Error refreshing auction ${id}:`, err);
-      setError('Failed to refresh auction data.');
+      setError("Failed to refresh auction data.");
     }
   }, []);
 
   // Search auctions by assetId or seller address
-  const searchAuctions = useCallback(async (query: string): Promise<AuctionDetails[]> => {
-    if (!query.trim()) return allAuctions;
+  const searchAuctions = useCallback(
+    async (query: string): Promise<AuctionDetails[]> => {
+      if (!query.trim()) return allAuctions;
 
-    const lowercaseQuery = query.toLowerCase();
-    return allAuctions.filter(auction => 
-      auction.assetId.toString().includes(lowercaseQuery) ||
-      auction.seller.toLowerCase().includes(lowercaseQuery) ||
-      (auction.id && auction.id.toLowerCase().includes(lowercaseQuery))
-    );
-  }, [allAuctions]);
+      const lowercaseQuery = query.toLowerCase();
+      return allAuctions.filter(
+        (auction) =>
+          auction.assetId.toString().includes(lowercaseQuery) ||
+          auction.seller.toLowerCase().includes(lowercaseQuery)
+        // || (auction.id && auction.id.toLowerCase().includes(lowercaseQuery))
+      );
+    },
+    [allAuctions]
+  );
 
   // Filter auctions by criteria
-  const filterAuctions = useCallback(async (filters: AuctionFilters): Promise<AuctionDetails[]> => {
-    return allAuctions.filter(auction => {
-      // Filter by auction type
-      if (filters.type !== undefined && auction.type !== filters.type) {
-        return false;
-      }
-      
-      // Filter by price range
-      if (filters.minPrice !== undefined) {
-        // Convert both to BigInt for proper comparison of wei values
-        const bidValue = BigInt(auction.highestBid);
-        const minValue = BigInt(filters.minPrice);
-        if (bidValue < minValue) {
+  const filterAuctions = useCallback(
+    async (filters: AuctionFilters): Promise<AuctionDetails[]> => {
+      return allAuctions.filter((auction) => {
+        // Filter by auction type
+        if (filters.type !== undefined && auction.type !== filters.type) {
           return false;
         }
-      }
-      
-      if (filters.maxPrice !== undefined) {
-        // Convert both to BigInt for proper comparison of wei values
-        const bidValue = BigInt(auction.highestBid);
-        const maxValue = BigInt(filters.maxPrice);
-        if (bidValue > maxValue) {
-          return false;
+
+        // Filter by price range
+        if (filters.minPrice !== undefined) {
+          // Convert both to BigInt for proper comparison of wei values
+          const bidValue = BigInt(auction.highestBid);
+          const minValue = BigInt(filters.minPrice);
+          if (bidValue < minValue) {
+            return false;
+          }
         }
-      }
-      
-      // Filter by status
-      if (filters.status) {
-        if (filters.status === 'active' && auction.ended) {
-          return false;
+
+        if (filters.maxPrice !== undefined) {
+          // Convert both to BigInt for proper comparison of wei values
+          const bidValue = BigInt(auction.highestBid);
+          const maxValue = BigInt(filters.maxPrice);
+          if (bidValue > maxValue) {
+            return false;
+          }
         }
-        
-        if (filters.status === 'ended' && !auction.ended) {
-          return false;
+
+        // Filter by status
+        if (filters.status) {
+          if (filters.status === "active" && auction.ended) {
+            return false;
+          }
+
+          if (filters.status === "ended" && !auction.ended) {
+            return false;
+          }
         }
-      }
-      
-      return true;
-    });
-  }, [allAuctions]);
+
+        return true;
+      });
+    },
+    [allAuctions]
+  );
 
   // Load auctions initially
   useEffect(() => {
@@ -157,12 +166,17 @@ export const useAuctions = (): UseAuctionsReturn => {
   // Derived state - Now based on the AuctionDetails structure
   // Featured auctions - those with non-zero highest bid
   const featuredAuctions = allAuctions
-    .filter(auction => auction.highestBidder !== '0x0000000000000000000000000000000000000000')
+    .filter(
+      (auction) =>
+        auction.highestBidder !== "0x0000000000000000000000000000000000000000"
+    )
     .slice(0, 4);
 
   // Recent auctions - sorted by ID (as a proxy for creation time since we don't have that field)
   const recentAuctions = [...allAuctions]
-    .sort((a, b) => (b.id || '').localeCompare(a.id || ''))
+    .sort((a, b) =>
+      (b.assetId.toString() || "").localeCompare(a.assetId.toString() || "")
+    )
     .slice(0, 4);
 
   // Popular auctions - highest bids
@@ -176,26 +190,30 @@ export const useAuctions = (): UseAuctionsReturn => {
 
   // Ending soon auctions
   const endingSoonAuctions = [...allAuctions]
-    .filter(auction => !auction.ended)
+    .filter((auction) => !auction.ended)
     .sort((a, b) => a.endTime - b.endTime)
     .slice(0, 4);
-  
+
   // User's auctions (in a real implementation, these would filter based on user's address)
-  const myBids = isConnected ? allAuctions
-    .filter(auction => !auction.ended && 
-            auction.highestBidder.toLowerCase() === address?.toLowerCase())
-    : [];
-  
-  const myCreatedAuctions = isConnected 
-    ? allAuctions.filter(auction => 
-        auction.seller.toLowerCase() === address?.toLowerCase()
+  const myBids = isConnected
+    ? allAuctions.filter(
+        (auction) =>
+          !auction.ended &&
+          auction.highestBidder.toLowerCase() === address?.toLowerCase()
       )
     : [];
-  
-  const myWonAuctions = isConnected 
-    ? allAuctions.filter(auction => 
-        auction.ended && 
-        auction.highestBidder.toLowerCase() === address?.toLowerCase()
+
+  const myCreatedAuctions = isConnected
+    ? allAuctions.filter(
+        (auction) => auction.seller.toLowerCase() === address?.toLowerCase()
+      )
+    : [];
+
+  const myWonAuctions = isConnected
+    ? allAuctions.filter(
+        (auction) =>
+          auction.ended &&
+          auction.highestBidder.toLowerCase() === address?.toLowerCase()
       )
     : [];
 
@@ -214,7 +232,7 @@ export const useAuctions = (): UseAuctionsReturn => {
     fetchAuction,
     refreshAuction,
     searchAuctions,
-    filterAuctions
+    filterAuctions,
   };
 };
 
