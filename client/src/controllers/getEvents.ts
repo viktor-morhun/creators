@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { config } from '../config.ts';
+import {getNFTMetadata, NFTMetadata, getERC20Metadata, ERC20Metadata} from "./getToken.ts";
 
 
 // Define the Infura provider
@@ -37,10 +38,13 @@ export interface AuctionDetails {
   endTime: number; // Unix timestamp
   ended: boolean;
   assetAddress: string;
+  assetType: AssetType;
   assetId: number;
   amount: string; // In wei
   paymentToken: string;
   type: number; // 0 for English, 1 for Dutch
+  nft?: NFTMetadata; // Optional NFT metadata
+  erc20?: ERC20Metadata; // Optional ERC20 metadata
 }
 
 
@@ -201,18 +205,25 @@ async function getAuctionBids(
 async function getAuctionDetails(auctionAddress: string): Promise<AuctionDetails> {
   const auctionContract = new ethers.Contract(auctionAddress, config.IAuctionAbi, provider);
   const details = await auctionContract.getAuctionDetails();
-  return {
+  const result: AuctionDetails = {
     seller: details[0],
     highestBidder: details[1],
     highestBid: details[2].toString(),
     endTime: Number(details[3]),
     ended: details[4],
     assetAddress: details[5],
-    assetId: Number(details[6]),
-    amount: details[7].toString(),
-    paymentToken: details[8],
-    type: details[9],
+    assetType: Number(details[6]),  // 0 for ERC20, 1 for ERC721
+    assetId: Number(details[7]),
+    amount: details[8].toString(),
+    paymentToken: details[9],
+    type: details[10],
   };
+  if (result.assetType === 1) { // ERC721 или ERC1155
+    result.nft = await getNFTMetadata(result.assetAddress, result.assetId);
+  } else {
+    result.erc20 = await getERC20Metadata(result.assetAddress);
+  }
+    return result;
 }
 
 export {
