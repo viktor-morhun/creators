@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import AuctionCard, { AuctionDetails } from "./AuctionCard";
+//import { Link } from "react-router-dom";
+import AuctionCard from "./AuctionCard";
+import { AuctionDetails } from "../../controllers/getEvents";
 
 interface AuctionGridProps {
   auctions: AuctionDetails[];
@@ -119,7 +120,7 @@ const AuctionGrid: React.FC<AuctionGridProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredAuctions.map((auction, index) => (
             <AuctionCard
-              key={auction.id || `auction-${index}`}
+              key={auction.assetId || `auction-${index}`}
               index={index}
               auction={auction}
             />

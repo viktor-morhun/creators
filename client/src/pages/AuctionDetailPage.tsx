@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { useAppDispatch, useAppSelector } from "../hooks/redux";
@@ -65,10 +65,11 @@ const AuctionDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
+  //fetch auction data here
   const { currentAuction, loading, error } = useAppSelector(
     (state) => state.auctions
   );
-  const { isConnected, address, chainId } = useAppSelector(
+  const { isConnected, address } = useAppSelector(
     (state) => state.web3
   );
 
@@ -80,7 +81,7 @@ const AuctionDetailPage: React.FC = () => {
 
   useEffect(() => {
     if (id) {
-      dispatch(fetchAuctionById(id));
+      dispatch(fetchAuctionById(Number(id)));
     }
   }, [dispatch, id]);
 
@@ -112,16 +113,16 @@ const AuctionDetailPage: React.FC = () => {
     initializeContract();
   }, [currentAuction, isConnected]);
 
-  // Check if user is on the correct chain
-  useEffect(() => {
-    if (isConnected && currentAuction && chainId !== currentAuction.chainId) {
-      toast.warning(
-        `This auction is on a different network. Please switch to ${getNetworkName(
-          currentAuction.chainId
-        )}.`
-      );
-    }
-  }, [isConnected, currentAuction, chainId]);
+  // // Check if user is on the correct chain
+  // useEffect(() => {
+  //   if (isConnected && currentAuction && chainId !== currentAuction.chainId) {
+  //     toast.warning(
+  //       `This auction is on a different network. Please switch to ${getNetworkName(
+  //         currentAuction.chainId
+  //       )}.`
+  //     );
+  //   }
+  // }, [isConnected, currentAuction, chainId]);
 
   // Auto-hide share tooltip after showing
   useEffect(() => {
@@ -133,19 +134,19 @@ const AuctionDetailPage: React.FC = () => {
     }
   }, [shareTooltip]);
 
-  // Helper function to get network name from chain ID
-  const getNetworkName = (id: number) => {
-    switch (id) {
-      case 1:
-        return "Ethereum Mainnet";
-      case 137:
-        return "Polygon";
-      case 42161:
-        return "Arbitrum";
-      default:
-        return `Network ID ${id}`;
-    }
-  };
+  // // Helper function to get network name from chain ID
+  // const getNetworkName = (id: number) => {
+  //   switch (id) {
+  //     case 1:
+  //       return "Ethereum Mainnet";
+  //     case 137:
+  //       return "Polygon";
+  //     case 42161:
+  //       return "Arbitrum";
+  //     default:
+  //       return `Network ID ${id}`;
+  //   }
+  // };
 
   // Handle share auction
   const handleShareAuction = () => {
@@ -155,8 +156,8 @@ const AuctionDetailPage: React.FC = () => {
     if (navigator.share) {
       navigator
         .share({
-          title: currentAuction?.title || "Auction Details",
-          text: `Check out this auction: ${currentAuction?.title}`,
+          title: "Auction Details",
+          text: `Check out this auction: Lot#${currentAuction?.assetId}`,
           url: url,
         })
         .then(() => console.log("Shared successfully"))
@@ -240,7 +241,7 @@ const AuctionDetailPage: React.FC = () => {
       setBids([newBid, ...bids]);
 
       // Refresh auction data after successful bid
-      dispatch(fetchAuctionById(id!));
+      dispatch(fetchAuctionById(Number(id!)));
 
       // Show success message
       toast.success("Bid placed successfully!");
@@ -337,7 +338,7 @@ const AuctionDetailPage: React.FC = () => {
             <div className="relative">
               <div className="w-full h-[400px] bg-gradient-to-br from-purple-900 via-gray-800 to-black flex items-center justify-center"></div>
               <div className="absolute top-4 left-4 flex space-x-2">
-                <AuctionTypeTag type={currentAuction.auctionType} />
+                <AuctionTypeTag type={currentAuction.type} />
                 <div className="bg-gray-900 bg-opacity-70 text-white text-xs px-2 py-1 rounded-lg">
                   {currentAuction.paymentToken}
                 </div>
@@ -350,13 +351,13 @@ const AuctionDetailPage: React.FC = () => {
             {/* Content */}
             <div className="p-6">
               <h1 className="text-2xl font-bold text-white mb-2">
-                {currentAuction.title}
+                LOT#{currentAuction.assetId}
               </h1>
 
               <div className="flex items-center mb-4">
                 <div className="mr-2 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-xs">
-                  {currentAuction.seller.name
-                    ? currentAuction.seller.name.charAt(0)
+                  {currentAuction.seller
+                    ? currentAuction.seller.charAt(0)
                     : "S"}
                 </div>
                 <div>
@@ -457,8 +458,8 @@ const AuctionDetailPage: React.FC = () => {
                 </div>
               ) : (
                 <BidHistory
-                  auctionId={currentAuction.assetId}
-                  currency={currentAuction.currency}
+                  auctionId={`${currentAuction.assetId}`}
+                  currency={currentAuction.paymentToken}
                   bids={bids}
                   isLoading={loadingBids}
                   fetchBids={fetchBids}
@@ -471,10 +472,10 @@ const AuctionDetailPage: React.FC = () => {
         {/* Sidebar - Bid area */}
         <div className="lg:col-span-1">
           <BidForm
-            auctionId={currentAuction.id}
+            auctionId={`${currentAuction.assetId}`}
             currentBid={currentAuction.highestBid}
             minBidIncrement={10}
-            currency={`ЗАМІНИТИ НА currency`}
+            currency={currentAuction.paymentToken}
             endTime={currentAuction.endTime}
             onBidSubmit={handlePlaceBid}
           />
@@ -489,9 +490,9 @@ const AuctionDetailPage: React.FC = () => {
                 {currentAuction.seller ? currentAuction.seller.charAt(0) : "S"}
               </div>
               <div>
-                <h4 className="font-medium text-white">
+                <h4 className="font-medium text-base w-[280px] block truncate text-white">
                   {currentAuction.seller ||
-                    `${currentAuction.seller.address.substring(0, 6)}...`}
+                  `${currentAuction.seller.substring(0, 6)}...`}
                 </h4>
                 <p className="text-sm text-gray-400">Creator</p>
               </div>

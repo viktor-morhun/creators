@@ -2,23 +2,26 @@ import { createSlice, createAsyncThunk,  } from '@reduxjs/toolkit';
 //PayloadAction
 import { toast } from 'react-toastify';
 import MOCK_AUCTIONS from '../mockData/auctions';
+import {NFTMetadata, ERC20Metadata} from "../../controllers/getToken";
+enum AssetType {
+  ERC20 = 0,
+  ERC721 = 1,
+}
 
 export interface AuctionItem {
-  id: string;
-  title: string;
-  description: string;
-  imageUrl: string;
-  currentBid: string; // in wei
-  currency: string;
-  endTime: number;
-  auctionType: 'english' | 'dutch' | 'sealed' | 'timed';
-  tokenType: 'ERC721' | 'ERC1155' | 'ERC20' | 'physical';
-  seller: {
-    address: string;
-    name: string;
-  };
-  bidCount: number;
-  chainId: number;
+  seller: string;
+  highestBidder: string;
+  highestBid: string; // In wei
+  endTime: number; // Unix timestamp
+  ended: boolean;
+  assetAddress: string;
+  assetType: AssetType;
+  assetId: number;
+  amount: string; // In wei
+  paymentToken: string;
+  type: number; // 0 for English, 1 for Dutch
+  nft?: NFTMetadata; // Optional NFT metadata
+  erc20?: ERC20Metadata;
 }
 
 interface AuctionsState {
@@ -63,11 +66,11 @@ export const fetchAllAuctions = createAsyncThunk(
 
 export const fetchAuctionById = createAsyncThunk(
   'auctions/fetchById',
-  async (id: string, { rejectWithValue }) => {
+  async (assetId: number, { rejectWithValue }) => {
     try {
       // In production, replace with actual API call
       await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
-      const auction = MOCK_AUCTIONS.find(a => a.id === id);
+      const auction = MOCK_AUCTIONS.find(a => a.assetId === assetId);
       if (!auction) {
         throw new Error('Auction not found');
       }
@@ -88,7 +91,7 @@ export const fetchUserAuctions = createAsyncThunk(
       
       // Filter auctions created by the user
       const userAuctions = MOCK_AUCTIONS.filter(
-        auction => auction.seller.address.toLowerCase() === address.toLowerCase()
+        auction => auction.seller.toLowerCase() === address.toLowerCase()
       );
       
       return userAuctions;

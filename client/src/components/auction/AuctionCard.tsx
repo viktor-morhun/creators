@@ -2,21 +2,9 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import CountdownTimer from './CountdownTimer';
 import Web3 from 'web3';
+import { AuctionDetails } from '../../controllers/getEvents';
 
 // Updated interface to match your data structure
-export interface AuctionDetails {
-  id?: string; // Adding optional id for routing
-  seller: string;
-  highestBidder: string;
-  highestBid: string; // In wei
-  endTime: number; // Unix timestamp
-  ended: boolean;
-  assetAddress: string;
-  assetId: number;
-  amount: string; // In wei
-  paymentToken: string;
-  type: number; // 0 for English, 1 for Dutch
-}
 
 interface AuctionCardProps {
   auction: AuctionDetails;
@@ -25,7 +13,6 @@ interface AuctionCardProps {
 
 const AuctionCard: React.FC<AuctionCardProps> = ({ auction, index }) => {
   const {
-    id,
     seller,
     highestBidder,
     highestBid,
@@ -39,7 +26,7 @@ const AuctionCard: React.FC<AuctionCardProps> = ({ auction, index }) => {
   } = auction;
 
   // Generate a unique ID if one isn't provided
-  const auctionId = id || `auction-${index}-${assetId}`;
+  const auctionId = assetId || `auction-${index}-${assetId}`;
   
   // Safe formatting functions with error handling
   const formatWei = (weiAmount: string): string => {
@@ -78,6 +65,8 @@ const AuctionCard: React.FC<AuctionCardProps> = ({ auction, index }) => {
   // Determine payment token symbol - default to ETH if the zero address is used (native token)
   const currencySymbol = paymentToken === '0x0000000000000000000000000000000000000000' ? 'ETH' : 'TOKEN';
 
+  //to ignore the unused var on deployment
+  if (false) console.log(amount)
   return (
     <Link to={`/auction/${auctionId}`}>
       <div className="bg-gray-800 h-[400px] rounded-xl overflow-hidden border border-gray-700 hover:border-gray-600 transition-all hover:shadow-lg hover:shadow-purple-900/10 group">

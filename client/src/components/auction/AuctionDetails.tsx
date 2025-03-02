@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { toast } from "react-toastify";
 import CountdownTimer from "./CountdownTimer";
 import Web3 from "web3";
 import { useAppSelector } from "../../hooks/redux";
-import { AuctionDetails as AuctionDetailsType } from "./AuctionCard";
+import { AuctionDetails as AuctionDetailsType } from "../../controllers/getEvents";
 
 interface AuctionDetailsProps {
   auction: AuctionDetailsType;
@@ -15,7 +15,6 @@ const AuctionDetails: React.FC<AuctionDetailsProps> = ({
   onPlaceBid,
 }) => {
   const {
-    id,
     seller,
     highestBidder,
     highestBid,
@@ -24,8 +23,11 @@ const AuctionDetails: React.FC<AuctionDetailsProps> = ({
     assetAddress,
     assetId,
     amount,
+    assetType,
     paymentToken,
-    type
+    type,
+    erc20,
+    nft,
   } = auction;
 
   // Get web3 state
@@ -40,15 +42,19 @@ const AuctionDetails: React.FC<AuctionDetailsProps> = ({
 
   // Format addresses for display
   const formatAddress = (addr: string): string => {
-    if (!addr || addr === "0x0000000000000000000000000000000000000000") return "None";
+    if (!addr || addr === "0x0000000000000000000000000000000000000000")
+      return "None";
     return `${addr.substring(0, 6)}...${addr.substring(addr.length - 4)}`;
   };
 
   // Format current bid from wei to ETH
   const formattedCurrentBid = Web3.utils.fromWei(highestBid, "ether");
-  
+
   // Determine currency symbol based on payment token
-  const currency = paymentToken === "0x0000000000000000000000000000000000000000" ? "ETH" : "TOKEN";
+  const currency =
+    paymentToken === "0x0000000000000000000000000000000000000000"
+      ? "ETH"
+      : "TOKEN";
 
   // Calculate minimum bid (current bid + 10%)
   const minBidAmount = parseFloat(formattedCurrentBid) * 1.1;
@@ -57,11 +63,14 @@ const AuctionDetails: React.FC<AuctionDetailsProps> = ({
   const hasEnded = ended || Date.now() > endTime;
 
   // Determine if current user is the seller
-  const isUserSeller = isConnected && address && address.toLowerCase() === seller.toLowerCase();
-  
+  const isUserSeller =
+    isConnected && address && address.toLowerCase() === seller.toLowerCase();
+
   // Determine if there are any bids (for English auctions)
-  const hasBids = type === 0 && highestBidder !== "0x0000000000000000000000000000000000000000";
-  
+  const hasBids =
+    type === 0 &&
+    highestBidder !== "0x0000000000000000000000000000000000000000";
+
   // Get auction type text
   const getAuctionTypeText = () => {
     switch (type) {
@@ -107,6 +116,11 @@ const AuctionDetails: React.FC<AuctionDetailsProps> = ({
     }
   };
 
+  if(false ) {
+    //to ignore unused vars on deployment
+    console.log (erc20, nft);
+  }
+
   // Share auction
   const handleShareAuction = () => {
     navigator.clipboard.writeText(window.location.href);
@@ -119,35 +133,48 @@ const AuctionDetails: React.FC<AuctionDetailsProps> = ({
         {/* Left Column - Image/Asset Display */}
         <div className="lg:col-span-3 relative">
           <div className="relative h-[400px] lg:h-full bg-gradient-to-br from-purple-900 to-blue-900 flex items-center justify-center">
+            {
+              /* NFT Image */ assetType === 1 && (
+                <img src="SRC for image" alt="nft image" />
+              )
+            }
             {/* NFT Information Display */}
             <div className="text-center">
-              <div className="text-6xl font-bold text-white mb-4">#{assetId}</div>
+              <div className="text-6xl font-bold text-white mb-4">
+                #{assetId}
+              </div>
               <div className="text-xl text-gray-300 mb-2">Asset Address:</div>
               <div className="font-mono text-sm text-gray-300 mb-4 px-6">
                 {assetAddress}
               </div>
               <div className="inline-block bg-gray-900 bg-opacity-70 rounded-lg px-4 py-2">
                 <div className="text-sm text-gray-400 mb-1">Token Amount</div>
-                <div className="text-white font-medium">{Web3.utils.fromWei(amount, "ether")}</div>
+                <div className="text-white font-medium">
+                  {Web3.utils.fromWei(amount, "ether")}
+                </div>
               </div>
             </div>
-            
+
             {/* Auction Type Badge */}
             <div className="absolute top-4 left-4 flex space-x-2">
-              <div className={`px-2 py-1 rounded-lg text-sm font-medium ${
-                type === 0 ? 'bg-purple-500 bg-opacity-70' : 'bg-blue-500 bg-opacity-70'
-              }`}>
+              <div
+                className={`px-2 py-1 rounded-lg text-sm font-medium ${
+                  type === 0
+                    ? "bg-purple-500 bg-opacity-70"
+                    : "bg-blue-500 bg-opacity-70"
+                }`}
+              >
                 {getAuctionTypeText()} Auction
               </div>
             </div>
-            
+
             {/* Countdown Timer */}
             {!hasEnded && (
               <div className="absolute bottom-4 right-4">
                 <CountdownTimer endTime={endTime} />
               </div>
             )}
-            
+
             {/* Status Badge */}
             {hasEnded && (
               <div className="absolute top-4 right-4 bg-red-500 bg-opacity-70 px-3 py-1 rounded-lg text-sm font-medium">
@@ -185,19 +212,27 @@ const AuctionDetails: React.FC<AuctionDetailsProps> = ({
             </div>
             <div className="flex justify-between mt-2">
               <p className="text-sm text-gray-400">
-                {hasBids ? `Highest bidder: ${formatAddress(highestBidder)}` : "No bids yet"}
+                {hasBids
+                  ? `Highest bidder: ${formatAddress(highestBidder)}`
+                  : "No bids yet"}
               </p>
               <p className="text-sm text-gray-400">
                 {networkName || "Ethereum"}
               </p>
             </div>
           </div>
-          
+
           <div className="mb-6">
             <h2 className="text-lg font-semibold mb-2">Details</h2>
             <div className="text-gray-300 text-sm leading-relaxed">
-              <p>This is an on-chain auction for NFT #{assetId} from collection {formatAddress(assetAddress)}.</p>
-              <p className="mt-2">The auction will {hasEnded ? "ended" : "end"} at {new Date(endTime).toLocaleString()}.</p>
+              <p>
+                This is an on-chain auction for NFT #{assetId} from collection{" "}
+                {formatAddress(assetAddress)}.
+              </p>
+              <p className="mt-2">
+                The auction will {hasEnded ? "ended" : "end"} at{" "}
+                {new Date(endTime).toLocaleString()}.
+              </p>
             </div>
           </div>
 
@@ -317,10 +352,10 @@ const AuctionDetails: React.FC<AuctionDetailsProps> = ({
               <h3 className="text-sm text-gray-400 mb-1">Payment Token</h3>
               <p className="text-white font-mono text-sm">{paymentToken}</p>
             </div>
-            {id && (
+            {assetId && (
               <div>
                 <h3 className="text-sm text-gray-400 mb-1">Auction ID</h3>
-                <p className="text-white font-mono text-sm">{id}</p>
+                <p className="text-white font-mono text-sm">{assetId}</p>
               </div>
             )}
           </div>
