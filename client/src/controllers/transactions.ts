@@ -106,7 +106,7 @@ async function createDutchAuctionTx(
   ]);
 
   const txRequest: ethers.TransactionRequest = {
-    to: config.contractAbi,
+    to: config.contractAddress,
     data,
   };
 
