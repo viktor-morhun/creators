@@ -8,6 +8,7 @@ from sqlalchemy import func
 import asyncio
 
 from config import (
+    RPC_URL,
     FACTORY_CONTRACT_ADDRESS,
     FACTORY_ABI_PATH,
     AUCTION_ABI_PATH,
@@ -19,121 +20,129 @@ from db_models import Auction, Bid, NFTMetadata, TokenMetadata, init_db, Session
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Hardcoded RPC URLs
-RPC_URLS = [
-    "https://sepolia.infura.io/v3/f2e0e865018a4cc583988b76b995c94a",
-    "https://sepolia.infura.io/v3/c08f6f09d0d0498fb3b5cd74a36eec15",
-]
+# Initialize web3
+w3 = Web3(Web3.HTTPProvider(RPC_URL))
+
+# Load contract ABIs
+with open(FACTORY_ABI_PATH) as f:
+    factory_abi = json.load(f)
+
+with open(AUCTION_ABI_PATH) as f:
+    auction_abi = json.load(f)
+
+with open(DUTCH_AUCTION_ABI_PATH) as f:
+    dutch_auction_abi = json.load(f)
+
+# Initialize contract with checksum address
+factory_contract = w3.eth.contract(
+    address=Web3.to_checksum_address(FACTORY_CONTRACT_ADDRESS), abi=factory_abi
+)
+
+# Create a combined ABI for auction contracts that includes both English and Dutch auction functions
+combined_auction_abi = auction_abi.copy()
+for entry in dutch_auction_abi:
+    if not any(
+        e.get("name") == entry.get("name")
+        for e in combined_auction_abi
+        if "name" in e and "name" in entry
+    ):
+        combined_auction_abi.append(entry)
+
+# Event signatures
+AUCTION_CREATED_EVENT = Web3.keccak(
+    text="AuctionCreated(uint256,address,uint8,address)"
+).hex()
+BID_PLACED_EVENT = "BidPlaced(address,uint256)"
+
 
 class BlockchainListener:
     def __init__(self):
-        self.rpc_urls = RPC_URLS
-        self.current_rpc_index = 0
-        self.w3 = self._init_web3()
         self.db = SessionLocal()
         self.last_block_processed = self.get_last_processed_block()
-        self._load_contracts()
-
-    def _init_web3(self):
-        """Initialize Web3 with the current RPC URL"""
-        return Web3(Web3.HTTPProvider(self.rpc_urls[self.current_rpc_index]))
-
-    def _switch_rpc(self):
-        """Switch to the next RPC URL in the list"""
-        self.current_rpc_index = (self.current_rpc_index + 1) % len(self.rpc_urls)
-        logger.info(f"Switching to RPC URL: {self.rpc_urls[self.current_rpc_index]}")
-        self.w3 = self._init_web3()
-        self._load_contracts()  # Reload contracts with new Web3 instance
-
-    def _load_contracts(self):
-        """Load contract ABIs and initialize factory contract"""
-        try:
-            with open(FACTORY_ABI_PATH) as f:
-                factory_abi = json.load(f)
-
-            with open(AUCTION_ABI_PATH) as f:
-                auction_abi = json.load(f)
-
-            with open(DUTCH_AUCTION_ABI_PATH) as f:
-                dutch_auction_abi = json.load(f)
-
-            self.factory_contract = self.w3.eth.contract(
-                address=Web3.to_checksum_address(FACTORY_CONTRACT_ADDRESS), abi=factory_abi
-            )
-
-            # Create a combined ABI for auction contracts
-            self.combined_auction_abi = auction_abi.copy()
-            for entry in dutch_auction_abi:
-                if not any(
-                    e.get("name") == entry.get("name")
-                    for e in self.combined_auction_abi
-                    if "name" in e and "name" in entry
-                ):
-                    self.combined_auction_abi.append(entry)
-
-            # Event signatures
-            self.AUCTION_CREATED_EVENT = Web3.keccak(
-                text="AuctionCreated(uint256,address,uint8,address)"
-            ).hex()
-            self.BID_PLACED_EVENT = "BidPlaced(address,uint256)"
-
-        except Exception as e:
-            logger.error(f"Error loading contracts: {e}")
-            raise
-
-    def _retry_on_failure(self, func, *args, max_attempts=2, **kwargs):
-        """Retry a function call with RPC switching on failure"""
-        attempts = 0
-        while attempts < max_attempts:
-            try:
-                return func(*args, **kwargs)
-            except Exception as e:
-                logger.error(f"Error in {func.__name__}: {e}")
-                attempts += 1
-                if attempts == max_attempts:
-                    logger.error(f"Max attempts reached for {func.__name__}")
-                    raise
-                self._switch_rpc()
-                time.sleep(1)  # Small delay before retry
 
     def get_last_processed_block(self):
         """Get the last block we processed from the database or start from current block"""
         last_auction = self.db.query(func.max(Auction.created_at)).scalar()
         if last_auction:
             return last_auction
-        return self._retry_on_failure(self.w3.eth.get_block_number) - 1000
+        # Повторная попытка для block_number
+        for attempt in range(5):
+            try:
+                return w3.eth.block_number - 1000
+            except Exception as e:
+                logger.error(f"Error getting block number, attempt {attempt + 1}: {e}")
+                if attempt == 0:
+                    time.sleep(0.5)  # Ждём 0.5 секунды перед повторной попыткой
+                else:
+                    raise
 
     def fetch_auction_details(self, auction_address):
         """Fetch detailed information about an auction from the blockchain"""
-        def _fetch():
-            auction_contract = self.w3.eth.contract(
-                address=auction_address, abi=self.combined_auction_abi
+        try:
+            auction_contract = w3.eth.contract(
+                address=auction_address, abi=combined_auction_abi
             )
-            details = auction_contract.functions.getAuctionDetails().call()
+
+            # Повторная попытка для getAuctionDetails
+            for attempt in range(5):
+                try:
+                    details = auction_contract.functions.getAuctionDetails().call()
+                    break
+                except Exception as e:
+                    logger.error(f"Error calling getAuctionDetails, attempt {attempt + 1}: {e}")
+                    if attempt == 0:
+                        time.sleep(0.5)
+                    else:
+                        raise
 
             try:
                 auction_type = auction_contract.functions.auctionType().call()
             except (ContractLogicError, AttributeError):
                 try:
                     auction_contract.functions.getCurrentPrice().call()
-                    auction_type = 1  # Dutch auction
+                    auction_type = 1
                 except (ContractLogicError, AttributeError):
-                    auction_type = 0  # English auction
+                    auction_type = 0
 
             try:
-                token_contract = self.w3.eth.contract(
+                token_contract = w3.eth.contract(
                     address=details[8],
-                    abi=[{"constant": True, "inputs": [], "name": "symbol", "outputs": [{"name": "", "type": "string"}], "payable": False, "stateful": False, "type": "function"}],
+                    abi=[
+                        {
+                            "constant": True,
+                            "inputs": [],
+                            "name": "symbol",
+                            "outputs": [{"name": "", "type": "string"}],
+                            "payable": False,
+                            "stateful": False,
+                            "type": "function",
+                        }
+                    ],
                 )
-                token_symbol = token_contract.functions.symbol().call()
+                # Повторная попытка для symbol
+                for attempt in range(5):
+                    try:
+                        token_symbol = token_contract.functions.symbol().call()
+                        break
+                    except Exception as e:
+                        logger.error(f"Error calling symbol, attempt {attempt + 1}: {e}")
+                        if attempt == 0:
+                            time.sleep(0.5)
+                        else:
+                            token_symbol = "ETH"
+                            break
             except Exception:
                 token_symbol = "ETH"
 
             dutch_data = {}
             if auction_type == 1:
                 try:
-                    dutch_data["reservePrice"] = str(auction_contract.functions.reservePrice().call())
-                    dutch_data["currentPrice"] = str(auction_contract.functions.getCurrentPrice().call())
+                    dutch_data["reservePrice"] = str(
+                        auction_contract.functions.reservePrice().call()
+                    )
+                    dutch_data["currentPrice"] = str(
+                        auction_contract.functions.getCurrentPrice().call()
+                    )
                     dutch_data["duration"] = auction_contract.functions.duration().call()
                 except (ContractLogicError, AttributeError) as e:
                     logger.warning(f"Error getting Dutch auction data: {e}")
@@ -155,13 +164,16 @@ class BlockchainListener:
                 "status": status,
                 "token_symbol": token_symbol,
             }
+
             if dutch_data:
                 result.update(dutch_data)
+
             return result
 
-        return self._retry_on_failure(_fetch)
+        except Exception as e:
+            logger.error(f"Error fetching auction details for {auction_address}: {e}")
+            return None
 
-    # Остальные методы остаются без изменений, но будем использовать _retry_on_failure там, где обращаемся к блокчейну
     def fetch_nft_metadata(self, asset_address, asset_id):
         """Fetch enhanced metadata for an NFT including image, title and description"""
         try:
@@ -169,20 +181,41 @@ class BlockchainListener:
             if existing and (int(time.time()) - existing.last_updated) < 86400:
                 return existing
 
-            nft_contract = self.w3.eth.contract(
+            nft_contract = w3.eth.contract(
                 address=asset_address,
-                abi=[{"inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}], "name": "tokenURI", "outputs": [{"internalType": "string", "name": "", "type": "string"}], "stateMutability": "view", "type": "function"}],
+                abi=[
+                    {
+                        "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
+                        "name": "tokenURI",
+                        "outputs": [{"internalType": "string", "name": "", "type": "string"}],
+                        "stateMutability": "view",
+                        "type": "function",
+                    }
+                ],
             )
-            token_uri = self._retry_on_failure(nft_contract.functions.tokenURI.call, asset_id)
+
+            # Повторная попытка для tokenURI
+            for attempt in range(5):
+                try:
+                    token_uri = nft_contract.functions.tokenURI(asset_id).call()
+                    break
+                except Exception as e:
+                    logger.error(f"Error calling tokenURI, attempt {attempt + 1}: {e}")
+                    if attempt == 0:
+                        time.sleep(0.5)
+                    else:
+                        raise
 
             if token_uri.startswith("ipfs://"):
                 token_uri = f"https://ipfs.io/ipfs/{token_uri[7:]}"
+
             response = requests.get(token_uri)
             if response.status_code == 200:
                 metadata = response.json()
                 image_url = metadata.get("image", "")
                 name = metadata.get("name", f"NFT #{asset_id}")
                 description = metadata.get("description", "No description available")
+
                 if image_url.startswith("ipfs://"):
                     image_url = f"https://ipfs.io/ipfs/{image_url[7:]}"
 
@@ -209,14 +242,15 @@ class BlockchainListener:
                     return nft_metadata
         except Exception as e:
             logger.error(f"Error fetching NFT metadata for {asset_address}/{asset_id}: {e}")
-            return NFTMetadata(
-                asset_address=asset_address,
-                asset_id=asset_id,
-                image_url=f"https://via.placeholder.com/300x200?text=NFT+{asset_id}",
-                name=f"NFT #{asset_id}",
-                description="Metadata not available",
-                last_updated=int(time.time()),
-            )
+
+        return NFTMetadata(
+            asset_address=asset_address,
+            asset_id=asset_id,
+            image_url=f"https://via.placeholder.com/300x200?text=NFT+{asset_id}",
+            name=f"NFT #{asset_id}",
+            description="Metadata not available",
+            last_updated=int(time.time()),
+        )
 
     def fetch_token_metadata(self, token_address):
         """Fetch metadata for an ERC20 token including symbol, name and logo"""
@@ -225,7 +259,7 @@ class BlockchainListener:
             if existing and (int(time.time()) - existing.last_updated) < 86400:
                 return existing
 
-            token_contract = self.w3.eth.contract(
+            token_contract = w3.eth.contract(
                 address=token_address,
                 abi=[
                     {"constant": True, "inputs": [], "name": "symbol", "outputs": [{"name": "", "type": "string"}], "payable": False, "stateful": False, "type": "function"},
@@ -234,12 +268,42 @@ class BlockchainListener:
                 ],
             )
 
-            symbol = self._retry_on_failure(token_contract.functions.symbol.call)
-            name = self._retry_on_failure(token_contract.functions.name.call)
-            decimals = self._retry_on_failure(token_contract.functions.decimals.call)
+            symbol = "Unknown"
+            name = "Unknown Token"
+            decimals = 18
+
+            try:
+                # Повторные попытки для каждого вызова
+                for attempt in range(5):
+                    try:
+                        symbol = token_contract.functions.symbol().call()
+                        break
+                    except Exception as e:
+                        logger.warning(f"Error calling symbol, attempt {attempt + 1}: {e}")
+                        if attempt == 0:
+                            time.sleep(0.5)
+                for attempt in range(5):
+                    try:
+                        name = token_contract.functions.name().call()
+                        break
+                    except Exception as e:
+                        logger.warning(f"Error calling name, attempt {attempt + 1}: {e}")
+                        if attempt == 0:
+                            time.sleep(0.5)
+                for attempt in range(5):
+                    try:
+                        decimals = token_contract.functions.decimals().call()
+                        break
+                    except Exception as e:
+                        logger.warning(f"Error calling decimals, attempt {attempt + 1}: {e}")
+                        if attempt == 0:
+                            time.sleep(0.5)
+            except Exception as e:
+                logger.warning(f"Couldn't get all token details for {token_address}: {e}")
 
             image_url = f"https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/{token_address}/logo.png"
             fallback_image = f"https://via.placeholder.com/128x128?text={symbol}"
+
             try:
                 img_response = requests.head(image_url)
                 if img_response.status_code != 200:
@@ -272,6 +336,7 @@ class BlockchainListener:
 
         except Exception as e:
             logger.error(f"Error fetching token metadata for {token_address}: {e}")
+
             return TokenMetadata(
                 token_address=token_address,
                 symbol="Unknown",
@@ -330,6 +395,7 @@ class BlockchainListener:
                 self.fetch_nft_metadata(details["asset_address"], details["asset_id"])
             else:
                 self.fetch_token_metadata(details["asset_address"])
+
             self.fetch_token_metadata(details["payment_token"])
 
             logger.info(f"Added new auction {auction_id} at address {auction_address}")
@@ -349,12 +415,24 @@ class BlockchainListener:
                 logger.warning(f"Received bid for unknown auction: {auction_address}")
                 return
 
+            # Повторная попытка для get_block
+            for attempt in range(5):
+                try:
+                    timestamp = w3.eth.get_block(event["blockNumber"])["timestamp"]
+                    break
+                except Exception as e:
+                    logger.error(f"Error getting block timestamp, attempt {attempt + 1}: {e}")
+                    if attempt == 0:
+                        time.sleep(0.5)
+                    else:
+                        raise
+
             bid = Bid(
                 auction_address=auction_address,
                 bidder=bidder,
                 amount=amount,
                 block_number=event["blockNumber"],
-                timestamp=self._retry_on_failure(self.w3.eth.get_block, event["blockNumber"])["timestamp"],
+                timestamp=timestamp,
             )
 
             self.db.add(bid)
@@ -398,7 +476,18 @@ class BlockchainListener:
     def sync_auctions_from_contract(self):
         """Sync all auctions from the factory contract's mapping"""
         try:
-            auction_count = self._retry_on_failure(self.factory_contract.functions.auctionCount.call)
+            # Повторная попытка для auctionCount
+            for attempt in range(5):
+                try:
+                    auction_count = factory_contract.functions.auctionCount().call()
+                    break
+                except Exception as e:
+                    logger.error(f"Error calling auctionCount, attempt {attempt + 1}: {e}")
+                    if attempt == 0:
+                        time.sleep(0.5)
+                    else:
+                        raise
+
             logger.info(f"Total auctions in contract: {auction_count}")
 
             db_auctions = self.db.query(Auction.auction_id).all()
@@ -414,7 +503,18 @@ class BlockchainListener:
                         continue
 
                     try:
-                        auction_address = self._retry_on_failure(self.factory_contract.functions.auctions.call, auction_id)
+                        # Повторная попытка для auctions
+                        for attempt in range(5):
+                            try:
+                                auction_address = factory_contract.functions.auctions(auction_id).call()
+                                break
+                            except Exception as e:
+                                logger.error(f"Error calling auctions({auction_id}), attempt {attempt + 1}: {e}")
+                                if attempt == 0:
+                                    time.sleep(0.5)
+                                else:
+                                    raise
+
                         details = self.fetch_auction_details(auction_address)
                         if not details:
                             continue
@@ -461,7 +561,17 @@ class BlockchainListener:
     def listen_for_events(self):
         """Listen for events from the last processed block"""
         try:
-            current_block = self._retry_on_failure(self.w3.eth.get_block_number)
+            # Повторная попытка для block_number
+            for attempt in range(5):
+                try:
+                    current_block = w3.eth.block_number
+                    break
+                except Exception as e:
+                    logger.error(f"Error getting block number, attempt {attempt + 1}: {e}")
+                    if attempt == 0:
+                        time.sleep(0.5)
+                    else:
+                        raise
 
             if current_block <= self.last_block_processed:
                 logger.info("No new blocks to process")
@@ -473,28 +583,50 @@ class BlockchainListener:
                 "fromBlock": self.last_block_processed + 1,
                 "toBlock": current_block,
                 "address": Web3.to_checksum_address(FACTORY_CONTRACT_ADDRESS),
-                "topics": ["0x" + self.AUCTION_CREATED_EVENT],
+                "topics": ["0x" + AUCTION_CREATED_EVENT],
             }
-            auction_events = self._retry_on_failure(self.w3.eth.get_logs, auction_created_filter)
+
+            # Повторная попытка для get_logs
+            for attempt in range(5):
+                try:
+                    auction_events = w3.eth.get_logs(auction_created_filter)
+                    break
+                except Exception as e:
+                    logger.error(f"Error getting auction events, attempt {attempt + 1}: {e}")
+                    if attempt == 0:
+                        time.sleep(0.5)
+                    else:
+                        raise
 
             for event_log in auction_events:
-                event = self.factory_contract.events.AuctionCreated().process_log(event_log)
+                event = factory_contract.events.AuctionCreated().process_log(event_log)
                 self.process_auction_created_event(event)
 
             auctions = self.db.query(Auction.auction_address).all()
+
             for auction_address in [a[0] for a in auctions]:
-                auction_contract = self.w3.eth.contract(address=auction_address, abi=self.combined_auction_abi)
-                bid_event_signature = self.w3.keccak(text=self.BID_PLACED_EVENT).hex()
+                auction_contract = w3.eth.contract(address=auction_address, abi=auction_abi)
+                bid_event_signature = w3.keccak(text=BID_PLACED_EVENT).hex()
 
                 bid_filter = {
-                    "fromBlock": self.last_block_processed + 1,
                     "toBlock": current_block,
                     "address": auction_address,
                     "topics": ["0x" + bid_event_signature],
                 }
 
                 try:
-                    bid_events = self._retry_on_failure(self.w3.eth.get_logs, bid_filter)
+                    # Повторная попытка для get_logs
+                    for attempt in range(5):
+                        try:
+                            bid_events = w3.eth.get_logs(bid_filter)
+                            break
+                        except Exception as e:
+                            logger.error(f"Error getting bid events for {auction_address}, attempt {attempt + 1}: {e}")
+                            if attempt == 0:
+                                time.sleep(0.5)
+                            else:
+                                raise
+
                     for event_log in bid_events:
                         event = auction_contract.events.BidPlaced().process_log(event_log)
                         self.process_bid_placed_event(event, auction_address)
@@ -527,10 +659,6 @@ class BlockchainListener:
             self.db.close()
             logger.info("Blockchain listener stopped")
 
+
 # Initialize database
 init_db()
-
-# # Start the listener
-# if __name__ == "__main__":
-#     listener = BlockchainListener()
-#     asyncio.run(listener.start_listening())

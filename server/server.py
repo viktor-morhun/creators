@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 import uvicorn
 from pydantic import BaseModel
-
+from web3 import Web3
 from db_models import Auction, Bid, NFTMetadata, TokenMetadata, get_db
 from blockchain_listener import BlockchainListener
 from config import SYNC_INTERVAL, HOST, PORT
@@ -149,7 +149,7 @@ def get_auctions(
             )
 
             if token_metadata:
-                auction_dict["imageUrl"] = token_metadata.image_url
+                auction_dict["imageUrl"] = "http://placehold.it/350x50"
                 auction_dict["title"] = (
                     f"{token_metadata.name} ({token_metadata.symbol})"
                 )
@@ -217,14 +217,14 @@ def get_auction(auction_id: str, db: Session = Depends(get_db)):
 
         if token_metadata:
             auction_dict["imageUrl"] = token_metadata.image_url
-            auction_dict["title"] = f"{token_metadata.name} ({token_metadata.symbol})"
+            auction_dict["title"] = f"{Web3.from_wei(int(auction.amount), 'ether')} {token_metadata.name} ({token_metadata.symbol})"
             auction_dict["description"] = (
-                f"{auction.amount} {token_metadata.symbol} tokens"
+                f"{Web3.from_wei(int(auction.amount), 'ether')} {token_metadata.symbol} tokens"
             )
         else:
             auction_dict["imageUrl"] = f"https://via.placeholder.com/128x128?text=Token"
             auction_dict["title"] = "Unknown Token"
-            auction_dict["description"] = f"{auction.amount} tokens"
+            auction_dict["description"] = f"{Web3.from_wei(int(auction.amount), 'ether')} tokens"
 
     # Add payment token info
     payment_token = (
