@@ -4,6 +4,7 @@
 .pnp.js
 /vendor/
 /packages/
+/server/venv/
 
 # Build outputs
 /dist
